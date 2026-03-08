@@ -1,4 +1,5 @@
 import Foundation
+import ServiceManagement
 import Combine
 
 /// All user-configurable settings, backed by UserDefaults.
@@ -86,8 +87,14 @@ final class AppSettings: ObservableObject {
 
 @available(macOS 13.0, *)
 private func smAppServiceSetEnabled(_ enable: Bool) {
-    // Wire up SMAppService.mainApp here once you add
-    // ServiceManagement.framework to the target:
-    //   let service = SMAppService.mainApp
-    //   try? enable ? service.register() : service.unregister()
+    let service = SMAppService.mainApp
+    do {
+        if enable {
+            try service.register()
+        } else {
+            try service.unregister()
+        }
+    } catch {
+        print("Launch at login error: \(error.localizedDescription)")
+    }
 }
