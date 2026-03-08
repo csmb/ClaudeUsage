@@ -1,0 +1,133 @@
+import AppKit
+import SwiftUI
+import Combine
+
+/// Owns the NSStatusItem and the NSPopover.
+/// Observes AppState to update the menu bar icon title and color.
+final class StatusItemController: NSObject, NSPopoverDelegate {
+
+    // MARK: - Properties
+
+    private let statusItem: NSStatusItem
+    private let popover    = NSPopover()
+    private var appState:  AppState
+    private var cancellables: Set<AnyCancellable> = []
+    private var eventMonitor: Any?
+
+    // MARK: - Init
+
+    init(appState: AppState) {
+        self.appState = appState
+        self.statusItem = NSStatusBar.system.statusItem(
+            withLength: NSStatusItem.variableLength
+        )
+        super.init()
+        configureStatusItem()
+        configurePopover(appState: appState)
+        observeAppState()
+    }
+
+    // MARK: - Status Item
+
+    private func configureStatusItem() {
+        guard let button = statusItem.button else { return }
+        button.title  = "..."
+        button.action = #selector(togglePopover)
+        button.target = self
+    }
+
+    private func updateStatusButton() {
+        guard let button = statusItem.button else { return }
+
+        if appState.settings.displayMode == .iconOnly {
+            let color = nsColor(for: appState.utilizationLevel)
+            button.attributedTitle = coloredString("●", color: color)
+        } else {
+            button.attributedTitle = appState.menuBarAttributedTitle
+        }
+    }
+
+    private func nsColor(for level: UtilizationLevel) -> NSColor {
+        switch level {
+        case .low:      return .systemGreen
+        case .medium:   return .systemYellow
+        case .high:     return .systemOrange
+        case .critical: return .systemRed
+        }
+    }
+
+    private func coloredString(_ str: String, color: NSColor) -> NSAttributedString {
+        NSAttributedString(string: str, attributes: [
+            .foregroundColor: color,
+            .font: NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .medium)
+        ])
+    }
+
+    // MARK: - Popover
+
+    private func configurePopover(appState: AppState) {
+        popover.contentSize         = CGSize(width: 320, height: 400)
+        popover.behavior            = .transient
+        popover.animates            = true
+        popover.delegate            = self
+        popover.contentViewController = NSHostingController(
+            rootView: PopoverView()
+                .environmentObject(appState)
+                .environmentObject(appState.settings)
+        )
+    }
+
+    @objc private func togglePopover() {
+        if popover.isShown {
+            closePopover()
+        } else {
+            openPopover()
+        }
+    }
+
+    private func openPopover() {
+        guard let button = statusItem.button else { return }
+        popover.show(
+            relativeTo: button.bounds,
+            of: button,
+            preferredEdge: .minY
+        )
+        // Close popover when user clicks outside
+        eventMonitor = NSEvent.addGlobalMonitorForEvents(
+            matching: [.leftMouseDown, .rightMouseDown]
+        ) { [weak self] _ in
+            self?.closePopover()
+        }
+    }
+
+    private func closePopover() {
+        popover.performClose(nil)
+        if let monitor = eventMonitor {
+            NSEvent.removeMonitor(monitor)
+            eventMonitor = nil
+        }
+    }
+
+    // MARK: - Observe AppState
+
+    private func observeAppState() {
+        appState.objectWillChange
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.updateStatusButton()
+            }
+            .store(in: &cancellables)
+
+        // Initial paint
+        updateStatusButton()
+    }
+
+    // MARK: - NSPopoverDelegate
+
+    func popoverWillClose(_ notification: Notification) {
+        if let monitor = eventMonitor {
+            NSEvent.removeMonitor(monitor)
+            eventMonitor = nil
+        }
+    }
+}

@@ -6,6 +6,22 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		0F6E81C42F5953FD006C22F7 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F6E81B42F5953FD006C22F7 /* AppState.swift */; };
+		0F6E81C52F5953FD006C22F7 /* UsageData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F6E81B92F5953FD006C22F7 /* UsageData.swift */; };
+		0F6E81C62F5953FD006C22F7 /* CacheService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F6E81BC2F5953FD006C22F7 /* CacheService.swift */; };
+		0F6E81C72F5953FD006C22F7 /* PopoverView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F6E81BF2F5953FD006C22F7 /* PopoverView.swift */; };
+		0F6E81C82F5953FD006C22F7 /* KeychainService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F6E81BD2F5953FD006C22F7 /* KeychainService.swift */; };
+		0F6E81C92F5953FD006C22F7 /* StatusItemController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F6E81C12F5953FD006C22F7 /* StatusItemController.swift */; };
+		0F6E81CA2F5953FD006C22F7 /* Credentials.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F6E81B82F5953FD006C22F7 /* Credentials.swift */; };
+		0F6E81CB2F5953FD006C22F7 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F6E81B72F5953FD006C22F7 /* AppSettings.swift */; };
+		0F6E81CC2F5953FD006C22F7 /* APIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F6E81BB2F5953FD006C22F7 /* APIService.swift */; };
+		0F6E81CD2F5953FD006C22F7 /* ClaudeUsageApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F6E81B22F5953FD006C22F7 /* ClaudeUsageApp.swift */; };
+		0F6E81CE2F5953FD006C22F7 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F6E81C02F5953FD006C22F7 /* SettingsView.swift */; };
+		0F6E81CF2F5953FD006C22F7 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F6E81B12F5953FD006C22F7 /* AppDelegate.swift */; };
+		0F6E81D02F5953FD006C22F7 /* PollingManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F6E81B52F5953FD006C22F7 /* PollingManager.swift */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		0F6E81952F59538B006C22F7 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -27,6 +43,20 @@
 		0F6E81872F595389006C22F7 /* ClaudeUsage.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ClaudeUsage.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		0F6E81942F59538B006C22F7 /* ClaudeUsageTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ClaudeUsageTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		0F6E819E2F59538B006C22F7 /* ClaudeUsageUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ClaudeUsageUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		0F6E81B12F5953FD006C22F7 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		0F6E81B22F5953FD006C22F7 /* ClaudeUsageApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeUsageApp.swift; sourceTree = "<group>"; };
+		0F6E81B42F5953FD006C22F7 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
+		0F6E81B52F5953FD006C22F7 /* PollingManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PollingManager.swift; sourceTree = "<group>"; };
+		0F6E81B72F5953FD006C22F7 /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
+		0F6E81B82F5953FD006C22F7 /* Credentials.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Credentials.swift; sourceTree = "<group>"; };
+		0F6E81B92F5953FD006C22F7 /* UsageData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageData.swift; sourceTree = "<group>"; };
+		0F6E81BB2F5953FD006C22F7 /* APIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIService.swift; sourceTree = "<group>"; };
+		0F6E81BC2F5953FD006C22F7 /* CacheService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CacheService.swift; sourceTree = "<group>"; };
+		0F6E81BD2F5953FD006C22F7 /* KeychainService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainService.swift; sourceTree = "<group>"; };
+		0F6E81BF2F5953FD006C22F7 /* PopoverView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PopoverView.swift; sourceTree = "<group>"; };
+		0F6E81C02F5953FD006C22F7 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		0F6E81C12F5953FD006C22F7 /* StatusItemController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusItemController.swift; sourceTree = "<group>"; };
+		0F6E81D12F5955F2006C22F7 /* ClaudeUsage.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ClaudeUsage.entitlements; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -75,6 +105,8 @@
 		0F6E817E2F595389006C22F7 = {
 			isa = PBXGroup;
 			children = (
+				0F6E81D12F5955F2006C22F7 /* ClaudeUsage.entitlements */,
+				0F6E81C32F5953FD006C22F7 /* Sources */,
 				0F6E81892F595389006C22F7 /* ClaudeUsage */,
 				0F6E81972F59538B006C22F7 /* ClaudeUsageTests */,
 				0F6E81A12F59538B006C22F7 /* ClaudeUsageUITests */,
@@ -90,6 +122,66 @@
 				0F6E819E2F59538B006C22F7 /* ClaudeUsageUITests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		0F6E81B32F5953FD006C22F7 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				0F6E81B12F5953FD006C22F7 /* AppDelegate.swift */,
+				0F6E81B22F5953FD006C22F7 /* ClaudeUsageApp.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		0F6E81B62F5953FD006C22F7 /* Managers */ = {
+			isa = PBXGroup;
+			children = (
+				0F6E81B42F5953FD006C22F7 /* AppState.swift */,
+				0F6E81B52F5953FD006C22F7 /* PollingManager.swift */,
+			);
+			path = Managers;
+			sourceTree = "<group>";
+		};
+		0F6E81BA2F5953FD006C22F7 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				0F6E81B72F5953FD006C22F7 /* AppSettings.swift */,
+				0F6E81B82F5953FD006C22F7 /* Credentials.swift */,
+				0F6E81B92F5953FD006C22F7 /* UsageData.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		0F6E81BE2F5953FD006C22F7 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				0F6E81BB2F5953FD006C22F7 /* APIService.swift */,
+				0F6E81BC2F5953FD006C22F7 /* CacheService.swift */,
+				0F6E81BD2F5953FD006C22F7 /* KeychainService.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		0F6E81C22F5953FD006C22F7 /* UI */ = {
+			isa = PBXGroup;
+			children = (
+				0F6E81BF2F5953FD006C22F7 /* PopoverView.swift */,
+				0F6E81C02F5953FD006C22F7 /* SettingsView.swift */,
+				0F6E81C12F5953FD006C22F7 /* StatusItemController.swift */,
+			);
+			path = UI;
+			sourceTree = "<group>";
+		};
+		0F6E81C32F5953FD006C22F7 /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				0F6E81B32F5953FD006C22F7 /* App */,
+				0F6E81B62F5953FD006C22F7 /* Managers */,
+				0F6E81BA2F5953FD006C22F7 /* Models */,
+				0F6E81BE2F5953FD006C22F7 /* Services */,
+				0F6E81C22F5953FD006C22F7 /* UI */,
+			);
+			path = Sources;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -236,6 +328,19 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				0F6E81C42F5953FD006C22F7 /* AppState.swift in Sources */,
+				0F6E81C52F5953FD006C22F7 /* UsageData.swift in Sources */,
+				0F6E81C62F5953FD006C22F7 /* CacheService.swift in Sources */,
+				0F6E81C72F5953FD006C22F7 /* PopoverView.swift in Sources */,
+				0F6E81C82F5953FD006C22F7 /* KeychainService.swift in Sources */,
+				0F6E81C92F5953FD006C22F7 /* StatusItemController.swift in Sources */,
+				0F6E81CA2F5953FD006C22F7 /* Credentials.swift in Sources */,
+				0F6E81CB2F5953FD006C22F7 /* AppSettings.swift in Sources */,
+				0F6E81CC2F5953FD006C22F7 /* APIService.swift in Sources */,
+				0F6E81CD2F5953FD006C22F7 /* ClaudeUsageApp.swift in Sources */,
+				0F6E81CE2F5953FD006C22F7 /* SettingsView.swift in Sources */,
+				0F6E81CF2F5953FD006C22F7 /* AppDelegate.swift in Sources */,
+				0F6E81D02F5953FD006C22F7 /* PollingManager.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -394,13 +499,24 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = ClaudeUsage.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 2LKH737S2W;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_INCOMING_NETWORK_CONNECTIONS = NO;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = NO;
 				ENABLE_PREVIEWS = YES;
+				ENABLE_RESOURCE_ACCESS_AUDIO_INPUT = NO;
+				ENABLE_RESOURCE_ACCESS_BLUETOOTH = NO;
+				ENABLE_RESOURCE_ACCESS_CALENDARS = NO;
+				ENABLE_RESOURCE_ACCESS_CAMERA = NO;
+				ENABLE_RESOURCE_ACCESS_CONTACTS = NO;
+				ENABLE_RESOURCE_ACCESS_LOCATION = NO;
+				ENABLE_RESOURCE_ACCESS_PRINTING = NO;
+				ENABLE_RESOURCE_ACCESS_USB = NO;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
@@ -426,13 +542,24 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = ClaudeUsage.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 2LKH737S2W;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_INCOMING_NETWORK_CONNECTIONS = NO;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = NO;
 				ENABLE_PREVIEWS = YES;
+				ENABLE_RESOURCE_ACCESS_AUDIO_INPUT = NO;
+				ENABLE_RESOURCE_ACCESS_BLUETOOTH = NO;
+				ENABLE_RESOURCE_ACCESS_CALENDARS = NO;
+				ENABLE_RESOURCE_ACCESS_CAMERA = NO;
+				ENABLE_RESOURCE_ACCESS_CONTACTS = NO;
+				ENABLE_RESOURCE_ACCESS_LOCATION = NO;
+				ENABLE_RESOURCE_ACCESS_PRINTING = NO;
+				ENABLE_RESOURCE_ACCESS_USB = NO;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
