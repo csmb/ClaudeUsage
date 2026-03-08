@@ -48,13 +48,13 @@ struct KeychainService {
     /// Throws `KeychainError` if the item is absent or malformed.
     static func loadCredentials() throws -> OAuthCredentials {
         let data = try readRawData(service: claudeCodeService)
+        let payload: ClaudeCodeKeychainPayload
         do {
-            // Primary shape: { "claudeAiOauth": { ... } }
-            let wrapper = try JSONDecoder().decode(ClaudeKeychainWrapper.self, from: data)
-            return wrapper.claudeAiOauth.toCredentials()
+            payload = try JSONDecoder().decode(ClaudeCodeKeychainPayload.self, from: data)
         } catch {
             throw KeychainError.decodingFailed(error)
         }
+        return payload.toCredentials()
     }
 
     // MARK: - Private helpers

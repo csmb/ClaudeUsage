@@ -38,21 +38,29 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
 
     private func updateStatusButton() {
         guard let button = statusItem.button else { return }
+        let level = appState.utilizationLevel
+        let title = appState.menuBarTitle
+
+        // Color-code the title string
+        let color: NSColor = {
+            switch level {
+            case .low:      return .systemGreen
+            case .medium:   return .systemYellow
+            case .high:     return .systemOrange
+            case .critical: return .systemRed
+            }
+        }()
 
         if appState.settings.displayMode == .iconOnly {
-            let color = nsColor(for: appState.utilizationLevel)
+            // Show a colored dot symbol when percent is hidden
             button.attributedTitle = coloredString("●", color: color)
         } else {
-            button.attributedTitle = appState.menuBarAttributedTitle
-        }
-    }
-
-    private func nsColor(for level: UtilizationLevel) -> NSColor {
-        switch level {
-        case .low:      return .systemGreen
-        case .medium:   return .systemYellow
-        case .high:     return .systemOrange
-        case .critical: return .systemRed
+            // Show the percentage in the appropriate color
+            var display = title
+            if appState.settings.displayMode == .percentAndIcon {
+                display = "● \(title)"
+            }
+            button.attributedTitle = coloredString(display, color: color)
         }
     }
 

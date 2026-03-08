@@ -16,7 +16,6 @@ enum APIError: LocalizedError {
     case noCredentials(Error)
     case networkError(Error)
     case httpError(Int)
-    case rateLimited(retryAfter: TimeInterval)
     case decodingError(Error)
     case invalidCredentials
 
@@ -28,9 +27,6 @@ enum APIError: LocalizedError {
             return "Network error: \(err.localizedDescription)"
         case .httpError(let code):
             return "API returned HTTP \(code)"
-        case .rateLimited(let retry):
-            let secs = Int(retry.rounded())
-            return "Rate limited — retrying in \(secs)s"
         case .decodingError(let err):
             return "Could not parse API response: \(err.localizedDescription)"
         case .invalidCredentials:
@@ -44,8 +40,8 @@ final class APIService {
     // MARK: - Constants
 
     private static let baseURL  = URL(string: "https://api.anthropic.com")!
-    private static let endpoint = "/api/oauth/usage"
-    private static let betaHeader = "oauth-2025-04-20"
+    private static let endpoint = "/v1/usage"
+    private static let betaHeader = "claude-code-usage-2024-12-20"
 
     // MARK: - URLSession
 
@@ -95,11 +91,6 @@ final class APIService {
             switch http.statusCode {
             case 200...299: break
             case 401: throw APIError.invalidCredentials
-            case 429:
-                let retry = (http.value(forHTTPHeaderField: "retry-after"))
-                    .flatMap(TimeInterval.init)
-                    .flatMap { $0 > 0 ? $0 : nil } ?? 60
-                throw APIError.rateLimited(retryAfter: retry)
             default:  throw APIError.httpError(http.statusCode)
             }
         }
