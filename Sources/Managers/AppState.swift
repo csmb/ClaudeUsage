@@ -123,12 +123,6 @@ final class AppState: ObservableObject {
         ])
 
         let result = NSMutableAttributedString()
-        if settings.displayMode == .percentAndIcon {
-            result.append(NSAttributedString(string: "● ", attributes: [
-                .font: font,
-                .foregroundColor: nsColor(for: utilizationLevel)
-            ]))
-        }
         result.append(seg(r.fiveHour?.percent ?? 0, r.fiveHour?.fraction ?? 0))
         result.append(sep)
         result.append(seg(r.sevenDay?.percent ?? 0, r.sevenDay?.fraction ?? 0))

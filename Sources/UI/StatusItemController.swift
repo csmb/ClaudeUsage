@@ -38,29 +38,7 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
 
     private func updateStatusButton() {
         guard let button = statusItem.button else { return }
-
-        if appState.settings.displayMode == .iconOnly {
-            let color = nsColor(for: appState.utilizationLevel)
-            button.attributedTitle = coloredString("●", color: color)
-        } else {
-            button.attributedTitle = appState.menuBarAttributedTitle
-        }
-    }
-
-    private func nsColor(for level: UtilizationLevel) -> NSColor {
-        switch level {
-        case .low:      return .systemGreen
-        case .medium:   return .systemYellow
-        case .high:     return .systemOrange
-        case .critical: return .systemRed
-        }
-    }
-
-    private func coloredString(_ str: String, color: NSColor) -> NSAttributedString {
-        NSAttributedString(string: str, attributes: [
-            .foregroundColor: color,
-            .font: NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .medium)
-        ])
+        button.attributedTitle = appState.menuBarAttributedTitle
     }
 
     // MARK: - Popover
