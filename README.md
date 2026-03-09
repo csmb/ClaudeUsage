@@ -29,81 +29,64 @@ Click **Always Allow**. That dialog is the correct, auditable behavior.
    - **Product Name:** `ClaudeUsage`
    - **Interface:** SwiftUI
    - **Language:** Swift
-   - **Bundle Identifier:** `com.yourname.ClaudeUsage` (anything you like)
-4. Choose a save location and click **Create**
+   - **Bundle Identifier:** `com.yourname.ClaudeUsage`
+4. Save inside this directory (`~/ClaudeUsage/`) and click **Create**
 
 ### 2 · Add source files
 
-1. Delete the generated `ContentView.swift` (move to Trash)
-2. In the Project Navigator, right-click the `ClaudeUsage` group → **Add Files to "ClaudeUsage"…**
-3. Select the `Sources/` folder from this repo; tick **Create groups** and **Add to target: ClaudeUsage**
+1. Delete the generated `ContentView.swift`
+2. Right-click the `ClaudeUsage` group → **Add Files to "ClaudeUsage"…**
+3. Select the `Sources/` folder; tick **Create groups** and **Add to target: ClaudeUsage**
 4. Click **Add**
-
-You should now see these groups in the navigator:
-```
-ClaudeUsage/
-  Sources/
-    App/      (ClaudeUsageApp.swift, AppDelegate.swift)
-    Models/   (UsageData.swift, Credentials.swift, AppSettings.swift)
-    Services/ (KeychainService.swift, APIService.swift, CacheService.swift)
-    Managers/ (AppState.swift, PollingManager.swift)
-    UI/       (StatusItemController.swift, PopoverView.swift, SettingsView.swift)
-```
 
 ### 3 · Configure entitlements
 
-1. In the Project Navigator, select the project → **ClaudeUsage** target → **Signing & Capabilities**
-2. Click the **+** button → search for **App Sandbox** → add it
-3. Tick only **Outgoing Connections (Client)** under Network
-4. Do **NOT** tick any file system access checkboxes
-5. Xcode auto-creates a `.entitlements` file — replace its contents with those from `ClaudeUsage.entitlements` in this repo (or just confirm the two keys match)
+1. Target → **Signing & Capabilities** → **+ Capability** → **App Sandbox**
+   - If App Sandbox isn't visible, go to Target → **Build Settings**, search `CODE_SIGN_ENTITLEMENTS`, and set the value to `ClaudeUsage.entitlements`
+2. Tick only **Outgoing Connections (Client)** under Network
+3. No file system access boxes should be checked
 
-### 4 · Configure Info.plist
+### 4 · Hide the Dock icon
 
-In **Target → Info**, add a new row:
+In Target → **Info**, add: `Application is agent (UIElement)` = **YES**
 
-| Key | Type | Value |
-|---|---|---|
-| `Application is agent (UIElement)` | Boolean | `YES` |
+### 5 · Build & Run (`⌘R`)
 
-This hides the app from the Dock and ⌘-Tab switcher.
-
-### 5 · Build & Run
-
-Press **⌘R**. The first time:
+On first launch:
 - macOS shows a Keychain consent dialog → click **Always Allow**
 - A colored usage indicator appears in your menu bar
-- Click it to open the usage popover
 
 ---
 
 ## Features
 
-- **Menu bar icon** — color-coded: green → yellow → orange → red
-- **Usage cards** — 5-hour window, 7-day window, and Opus (if applicable)
-- **Countdown timers** — live seconds-resolution reset countdown
-- **Adaptive polling** — 30 s (critical) → 5 min (low usage)
+- **Menu bar** — both 5h and 7d windows shown, each color-coded independently
+- **Color coding** — green → yellow → orange → red as usage climbs
+- **Usage cards** — 5-hour window, 7-day window, Opus (if applicable)
+- **Countdown timers** — live reset countdown (days/hours/mins when >24h out)
+- **Adaptive polling** — 30s (critical) → 5 min (low usage)
+- **Refresh cooldown** — 30s minimum between manual refreshes to avoid rate limiting
 - **Offline cache** — shows last-known data with age indicator
-- **Notifications** — alerts at 75 %, 90 %, 95 % thresholds
+- **Notifications** — alerts at 75%, 90%, 95% thresholds
 - **Settings** — refresh interval, display mode, launch at login, notification toggles
 
 ---
 
-## Verification checklist
+## Verification
 
 ```bash
-# Confirm no shell-based Keychain access
-grep -r "security find"    Sources/   # should return nothing
-grep -r "NSTask"           Sources/   # should return nothing
-grep -r "Process()"        Sources/   # should return nothing
+# No shell-based Keychain access
+grep -r "security find"  Sources/   # → nothing
+grep -r "NSTask"         Sources/   # → nothing
+grep -r "Process()"      Sources/   # → nothing
 
-# Confirm sandbox is on
+# Sandbox is on
 grep -A1 "app-sandbox" ClaudeUsage.entitlements
-# expected: <true/>
+# → <true/>
 
-# Confirm all network calls go to api.anthropic.com
+# All network calls go to api.anthropic.com
 grep -r "http" Sources/
-# expected: only "https://api.anthropic.com"
+# → only https://api.anthropic.com
 ```
 
 ---
@@ -112,7 +95,8 @@ grep -r "http" Sources/
 
 | Symptom | Fix |
 |---|---|
-| Menu bar shows "..." permanently | Click the menu bar item, check the error banner in the popover |
-| "Item not found" error | Make sure you are logged in to Claude Code (`claude --version` works) |
-| Keychain dialog never appears | The app may not be sandboxed; check entitlements |
-| Stuck on cached data | Click the ↻ button in the popover to force refresh |
+| Menu bar shows "…" permanently | Open the popover and check the error banner |
+| "Item not found" error | Make sure you are logged in to Claude Code |
+| Keychain dialog never appears | Check that App Sandbox is enabled in entitlements |
+| "Rate limited" error | Wait 30s — the cooldown will re-enable the refresh button |
+| Stuck on cached data | Wait for the cooldown, then click ↻ |

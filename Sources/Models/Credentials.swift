@@ -19,32 +19,34 @@ struct OAuthCredentials {
     }
 }
 
-// MARK: - JSON shape stored in Keychain by Claude Code
+// MARK: - Actual JSON shape stored in Keychain by Claude Code
+//
+// Claude Code wraps the OAuth token in a "claudeAiOauth" key:
+//
+//   { "claudeAiOauth": {
+//       "accessToken":    "<token>",
+//       "refreshToken":   "<token>",
+//       "expiresAt":      <unix ms timestamp>,
+//       "subscriptionType": "pro"
+//   }}
 
-/// Claude Code stores a JSON blob under the service "Claude Code-credentials".
-/// This mirrors the shape we decode from that blob.
-struct ClaudeCodeKeychainPayload: Codable {
-    let accessToken: String
-    let refreshToken: String?
-    let expiresAt: String?   // ISO-8601 string or nil
+struct ClaudeKeychainWrapper: Codable {
+    let claudeAiOauth: ClaudeOAuthPayload
+}
 
-    enum CodingKeys: String, CodingKey {
-        case accessToken  = "access_token"
-        case refreshToken = "refresh_token"
-        case expiresAt    = "expires_at"
-    }
+struct ClaudeOAuthPayload: Codable {
+    let accessToken:      String
+    let refreshToken:     String
+    let expiresAt:        TimeInterval   // milliseconds since epoch
+    let subscriptionType: String?
 
     func toCredentials() -> OAuthCredentials {
-        var expiryDate: Date? = nil
-        if let str = expiresAt {
-            let iso = ISO8601DateFormatter()
-            iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-            expiryDate = iso.date(from: str) ?? ISO8601DateFormatter().date(from: str)
-        }
+        // expiresAt is in milliseconds — divide by 1000 for Date
+        let expiry = Date(timeIntervalSince1970: expiresAt / 1000)
         return OAuthCredentials(
-            accessToken: accessToken,
+            accessToken:  accessToken,
             refreshToken: refreshToken,
-            expiresAt: expiryDate
+            expiresAt:    expiry
         )
     }
 }

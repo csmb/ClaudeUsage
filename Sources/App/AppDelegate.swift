@@ -5,15 +5,13 @@ import AppKit
 /// - Network reachability changes (future)
 final class AppDelegate: NSObject, NSApplicationDelegate {
 
-    var appState:              AppState!
+    var appState              = AppState()   // eager init — must exist before SwiftUI reads body
     var statusItemController:  StatusItemController!
     var credentialWatcher:     CredentialWatcher!
 
     // MARK: - Launch
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // Create the shared state first
-        appState = AppState()
 
         // Wire up the menu bar icon + popover
         statusItemController = StatusItemController(appState: appState)

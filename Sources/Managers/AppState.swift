@@ -1,4 +1,6 @@
 import Foundation
+import Combine
+import AppKit
 import UserNotifications
 
 /// Single source of truth for the app.
@@ -13,6 +15,19 @@ final class AppState: ObservableObject {
     @Published var isLoading:     Bool                = false
     @Published var error:         String?             = nil
     @Published var isFromCache:   Bool                = false
+    @Published var lastFetchedAt: Date?              = nil
+
+    private let refreshCooldown: TimeInterval = 30
+
+    var canRefresh: Bool {
+        guard let last = lastFetchedAt else { return true }
+        return Date().timeIntervalSince(last) >= refreshCooldown
+    }
+
+    var cooldownRemaining: Int {
+        guard let last = lastFetchedAt else { return 0 }
+        return max(0, Int(refreshCooldown - Date().timeIntervalSince(last)))
+    }
 
     // MARK: - Dependencies
 
@@ -44,6 +59,7 @@ final class AppState: ObservableObject {
     // MARK: - Refresh
 
     func refresh() async {
+        guard !isLoading, canRefresh else { return }
         isLoading = true
         defer { isLoading = false }
 
@@ -51,6 +67,7 @@ final class AppState: ObservableObject {
             let response = try await api.fetchUsage()
             usageResponse = response
             fetchedAt     = Date()
+            lastFetchedAt = Date()
             isFromCache   = false
             error         = nil
             cache.save(response)
@@ -64,6 +81,10 @@ final class AppState: ObservableObject {
 
             checkNotifications(for: response)
 
+        } catch APIError.rateLimited(let retryAfter) {
+            let backoff = max(60, retryAfter)   // always wait at least 60s
+            self.error = "Rate limited — next refresh in \(Int(backoff))s"
+            polling.updateInterval(backoff)
         } catch {
             self.error = error.localizedDescription
             // Keep showing cached data if available
@@ -74,18 +95,52 @@ final class AppState: ObservableObject {
 
     var utilizationLevel: UtilizationLevel {
         guard let r = usageResponse else { return .low }
-        let f5h = r.usage.fiveHour.fraction
-        let f7d = r.usage.sevenDay.fraction
+        let f5h = r.fiveHour?.fraction ?? 0
+        let f7d = r.sevenDay?.fraction ?? 0
         return UtilizationLevel(fraction: max(f5h, f7d))
     }
 
-    var menuBarTitle: String {
-        guard let r = usageResponse else { return "..." }
-        let pct = max(r.usage.fiveHour.percent, r.usage.sevenDay.percent)
-        switch settings.displayMode {
-        case .percentAndIcon: return "\(pct)%"
-        case .percentOnly:    return "\(pct)%"
-        case .iconOnly:       return ""
+    /// Attributed string for the menu bar button, with each window color-coded independently.
+    var menuBarAttributedTitle: NSAttributedString {
+        let font = NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .medium)
+
+        guard let r = usageResponse, settings.displayMode != .iconOnly else {
+            let dots = NSMutableAttributedString(string: "…", attributes: [
+                .font: font, .foregroundColor: NSColor.secondaryLabelColor
+            ])
+            return dots
+        }
+
+        func seg(_ pct: Int, _ fraction: Double) -> NSAttributedString {
+            let color = nsColor(for: UtilizationLevel(fraction: fraction))
+            return NSAttributedString(string: "\(pct)%", attributes: [
+                .font: font, .foregroundColor: color
+            ])
+        }
+
+        let sep = NSAttributedString(string: " · ", attributes: [
+            .font: font, .foregroundColor: NSColor.secondaryLabelColor
+        ])
+
+        let result = NSMutableAttributedString()
+        if settings.displayMode == .percentAndIcon {
+            result.append(NSAttributedString(string: "● ", attributes: [
+                .font: font,
+                .foregroundColor: nsColor(for: utilizationLevel)
+            ]))
+        }
+        result.append(seg(r.fiveHour?.percent ?? 0, r.fiveHour?.fraction ?? 0))
+        result.append(sep)
+        result.append(seg(r.sevenDay?.percent ?? 0, r.sevenDay?.fraction ?? 0))
+        return result
+    }
+
+    private func nsColor(for level: UtilizationLevel) -> NSColor {
+        switch level {
+        case .low:      return .systemGreen
+        case .medium:   return .systemYellow
+        case .high:     return .systemOrange
+        case .critical: return .systemRed
         }
     }
 
@@ -103,7 +158,7 @@ final class AppState: ObservableObject {
 
     private func checkNotifications(for response: UsageResponse) {
         guard settings.notificationsEnabled else { return }
-        let pct = max(response.usage.fiveHour.percent, response.usage.sevenDay.percent)
+        let pct = max(response.fiveHour?.percent ?? 0, response.sevenDay?.percent ?? 0)
         let thresholds: [(Int, Bool)] = [
             (75, settings.notify75),
             (90, settings.notify90),

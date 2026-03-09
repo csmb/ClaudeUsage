@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 
 /// Main popover content: usage cards + countdown timers + footer.
 struct PopoverView: View {
@@ -38,16 +39,23 @@ struct PopoverView: View {
                 .font(.headline)
             Spacer()
             if state.isLoading {
-                ProgressView().scaleEffect(0.7)
+                SpinnerView(size: 12)
             }
             Button {
                 Task { await state.refresh() }
             } label: {
-                Image(systemName: "arrow.clockwise")
-                    .imageScale(.small)
+                if state.canRefresh {
+                    Image(systemName: "arrow.clockwise")
+                        .imageScale(.small)
+                } else {
+                    Text("\(state.cooldownRemaining)s")
+                        .font(.caption2.monospacedDigit())
+                        .foregroundColor(.secondary)
+                }
             }
             .buttonStyle(.plain)
-            .help("Refresh now")
+            .disabled(!state.canRefresh)
+            .help(state.canRefresh ? "Refresh now" : "Wait \(state.cooldownRemaining)s before refreshing")
 
             SettingsLink {
                 Image(systemName: "gear")
@@ -62,25 +70,14 @@ struct PopoverView: View {
 
     private func usageCards(_ response: UsageResponse) -> some View {
         VStack(spacing: 8) {
-            UsageCard(
-                label:    "5-Hour Window",
-                usage:    response.usage.fiveHour,
-                resetAt:  response.usage.fiveHour.resetAt,
-                now:      now
-            )
-            UsageCard(
-                label:    "7-Day Window",
-                usage:    response.usage.sevenDay,
-                resetAt:  response.usage.sevenDay.resetAt,
-                now:      now
-            )
-            if let opus = response.usage.opus {
-                UsageCard(
-                    label:    "Opus",
-                    usage:    opus,
-                    resetAt:  opus.resetAt,
-                    now:      now
-                )
+            if let w = response.fiveHour {
+                UsageCard(label: "5-Hour Window", window: w, now: now)
+            }
+            if let w = response.sevenDay {
+                UsageCard(label: "7-Day Window", window: w, now: now)
+            }
+            if let w = response.sevenDayOpus {
+                UsageCard(label: "Opus (7-Day)", window: w, now: now)
             }
         }
     }
@@ -91,7 +88,7 @@ struct PopoverView: View {
         HStack {
             Spacer()
             VStack(spacing: 8) {
-                ProgressView()
+                SpinnerView(size: 20)
                 Text("Loading usage data…")
                     .font(.caption)
                     .foregroundColor(.secondary)
@@ -152,12 +149,11 @@ struct PopoverView: View {
 
 struct UsageCard: View {
 
-    let label:   String
-    let usage:   PeriodUsage
-    let resetAt: Date?
-    let now:     Date
+    let label:  String
+    let window: UsageWindow
+    let now:    Date
 
-    private var level: UtilizationLevel { UtilizationLevel(fraction: usage.fraction) }
+    private var level: UtilizationLevel { UtilizationLevel(fraction: window.fraction) }
 
     private var accentColor: Color {
         switch level {
@@ -175,12 +171,11 @@ struct UsageCard: View {
                     .font(.subheadline)
                     .fontWeight(.medium)
                 Spacer()
-                Text("\(usage.percent)%")
+                Text("\(window.percent)%")
                     .font(.subheadline.monospacedDigit())
                     .foregroundColor(accentColor)
             }
 
-            // Progress bar
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
                     RoundedRectangle(cornerRadius: 3)
@@ -188,18 +183,15 @@ struct UsageCard: View {
                         .frame(height: 6)
                     RoundedRectangle(cornerRadius: 3)
                         .fill(accentColor)
-                        .frame(width: geo.size.width * usage.fraction, height: 6)
-                        .animation(.easeOut(duration: 0.4), value: usage.fraction)
+                        .frame(width: geo.size.width * window.fraction, height: 6)
+                        .animation(.easeOut(duration: 0.4), value: window.fraction)
                 }
             }
             .frame(height: 6)
 
             HStack {
-                Text("\(usage.used) / \(usage.limit)")
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
                 Spacer()
-                if let reset = resetAt {
+                if let reset = window.resetsAt {
                     CountdownView(targetDate: reset, now: now)
                 }
             }
@@ -207,6 +199,26 @@ struct UsageCard: View {
         .padding(10)
         .background(Color(NSColor.controlBackgroundColor))
         .cornerRadius(8)
+    }
+}
+
+// MARK: - SpinnerView
+
+struct SpinnerView: View {
+    let size: CGFloat
+    @State private var angle: Double = 0
+
+    var body: some View {
+        Image(systemName: "arrow.clockwise")
+            .resizable()
+            .frame(width: size, height: size)
+            .foregroundColor(.secondary)
+            .rotationEffect(.degrees(angle))
+            .onAppear {
+                withAnimation(.linear(duration: 1).repeatForever(autoreverses: false)) {
+                    angle = 360
+                }
+            }
     }
 }
 
@@ -232,11 +244,14 @@ struct CountdownView: View {
     }
 
     private var formatted: String {
-        let total  = Int(remaining)
-        let hours  = total / 3600
-        let mins   = (total % 3600) / 60
-        let secs   = total % 60
-        if hours > 0 {
+        let total = Int(remaining)
+        let days  = total / 86400
+        let hours = (total % 86400) / 3600
+        let mins  = (total % 3600) / 60
+        let secs  = total % 60
+        if days > 0 {
+            return "\(days)d \(hours)h \(mins)m"
+        } else if hours > 0 {
             return String(format: "%dh %02dm", hours, mins)
         } else if mins > 0 {
             return String(format: "%dm %02ds", mins, secs)
