@@ -2,20 +2,9 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <!-- Sandbox ENABLED — full isolation, no home-directory access -->
     <key>com.apple.security.app-sandbox</key>
     <true/>
-    <!-- Only outbound HTTPS to api.anthropic.com -->
     <key>com.apple.security.network.client</key>
     <true/>
-    <!--
-        No com.apple.security.files.user-selected.read-only
-        No com.apple.security.files.downloads.read-only
-        No com.apple.security.temporary-exception.files.home-relative-path.read-only
-        No other entitlements.
-
-        Keychain access is granted at runtime via SecItemCopyMatching,
-        which triggers the standard macOS consent dialog.
-    -->
 </dict>
 </plist>
