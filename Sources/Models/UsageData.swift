@@ -39,7 +39,7 @@ struct CachedUsage: Codable {
 
 // MARK: - Utilization Level (drives polling cadence + icon color)
 
-enum UtilizationLevel {
+enum UtilizationLevel: Equatable {
     case low       // < 50 %
     case medium    // 50–74 %
     case high      // 75–89 %
