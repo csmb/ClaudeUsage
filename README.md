@@ -16,15 +16,10 @@ A macOS menu bar app that shows your Claude Code usage across rate-limit windows
 
 | Property | Value |
 |---|---|
-| Keychain access | `SecItemCopyMatching` — triggers macOS consent dialog on first launch |
+| App Sandbox | Disabled (required to read Claude Code's Keychain item) |
+| Keychain access | `SecItemCopyMatching` — macOS may prompt on first launch |
 | Network | Outbound HTTPS to `api.anthropic.com` only |
 | Shell commands | None — no `Process()`, `NSTask`, or `security` CLI calls |
-
-On first launch macOS will ask:
-
-> **"ClaudeUsage" wants to access "Claude Code-credentials" in your keychain.**
-
-Click **Always Allow**.
 
 ## Build & Install
 
