@@ -102,7 +102,7 @@ final class AppState: ObservableObject {
 
     /// Attributed string for the menu bar button, with each window color-coded independently.
     var menuBarAttributedTitle: NSAttributedString {
-        let font = NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .medium)
+        let font = NSFont.monospacedDigitSystemFont(ofSize: 13, weight: .medium)
 
         guard let r = usageResponse, settings.displayMode != .iconOnly else {
             let dots = NSMutableAttributedString(string: "…", attributes: [
