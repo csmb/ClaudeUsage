@@ -130,11 +130,26 @@ final class AppState: ObservableObject {
     }
 
     private func nsColor(for level: UtilizationLevel) -> NSColor {
-        switch level {
-        case .low:      return .systemGreen
-        case .medium:   return .systemYellow
-        case .high:     return .systemOrange
-        case .critical: return .systemRed
+        NSColor(name: nil) { appearance in
+            let isDark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+            switch level {
+            case .low:
+                return isDark
+                    ? NSColor(red: 0.133, green: 0.773, blue: 0.369, alpha: 1) // #22C55E
+                    : NSColor(red: 0.086, green: 0.396, blue: 0.204, alpha: 1) // #166534
+            case .medium:
+                return isDark
+                    ? NSColor(red: 0.984, green: 0.749, blue: 0.141, alpha: 1) // #FBBF24
+                    : NSColor(red: 0.573, green: 0.251, blue: 0.055, alpha: 1) // #92400E
+            case .high:
+                return isDark
+                    ? NSColor(red: 0.984, green: 0.573, blue: 0.235, alpha: 1) // #FB923C
+                    : NSColor(red: 0.604, green: 0.204, blue: 0.071, alpha: 1) // #9A3412
+            case .critical:
+                return isDark
+                    ? NSColor(red: 0.973, green: 0.443, blue: 0.443, alpha: 1) // #F87171
+                    : NSColor(red: 0.600, green: 0.106, blue: 0.106, alpha: 1) // #991B1B
+            }
         }
     }
 

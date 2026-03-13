@@ -1,5 +1,4 @@
 import Foundation
-import ServiceManagement
 import Combine
 
 /// All user-configurable settings, backed by UserDefaults.
@@ -17,13 +16,6 @@ final class AppSettings: ObservableObject {
 
     @Published var showPercentInMenuBar: Bool {
         didSet { defaults.set(showPercentInMenuBar, forKey: "showPercentInMenuBar") }
-    }
-
-    @Published var launchAtLogin: Bool {
-        didSet {
-            defaults.set(launchAtLogin, forKey: "launchAtLogin")
-            applyLaunchAtLogin()
-        }
     }
 
     // MARK: - Notifications
@@ -68,7 +60,6 @@ final class AppSettings: ObservableObject {
     init() {
         pollIntervalOverride  = defaults.double(forKey: "pollIntervalOverride")
         showPercentInMenuBar  = defaults.object(forKey: "showPercentInMenuBar") as? Bool ?? true
-        launchAtLogin         = defaults.bool(forKey: "launchAtLogin")
         notificationsEnabled  = defaults.object(forKey: "notificationsEnabled") as? Bool ?? true
         notify75              = defaults.object(forKey: "notify75") as? Bool ?? true
         notify90              = defaults.object(forKey: "notify90") as? Bool ?? true
@@ -76,25 +67,4 @@ final class AppSettings: ObservableObject {
         displayModeRaw        = defaults.string(forKey: "displayMode") ?? DisplayMode.percentAndIcon.rawValue
     }
 
-    // MARK: - Launch at Login
-
-    private func applyLaunchAtLogin() {
-        if #available(macOS 13.0, *) {
-            smAppServiceSetEnabled(launchAtLogin)
-        }
-    }
-}
-
-@available(macOS 13.0, *)
-private func smAppServiceSetEnabled(_ enable: Bool) {
-    let service = SMAppService.mainApp
-    do {
-        if enable {
-            try service.register()
-        } else {
-            try service.unregister()
-        }
-    } catch {
-        print("Launch at login error: \(error.localizedDescription)")
-    }
 }

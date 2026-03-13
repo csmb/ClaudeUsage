@@ -44,15 +44,16 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
     // MARK: - Popover
 
     private func configurePopover(appState: AppState) {
-        popover.contentSize         = CGSize(width: 320, height: 400)
-        popover.behavior            = .transient
-        popover.animates            = true
-        popover.delegate            = self
-        popover.contentViewController = NSHostingController(
+        popover.behavior = .transient
+        popover.animates = true
+        popover.delegate = self
+        let hc = NSHostingController(
             rootView: PopoverView()
                 .environmentObject(appState)
                 .environmentObject(appState.settings)
         )
+        hc.sizingOptions = .preferredContentSize
+        popover.contentViewController = hc
     }
 
     @objc private func togglePopover() {

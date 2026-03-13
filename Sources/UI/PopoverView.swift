@@ -27,7 +27,7 @@ struct PopoverView: View {
             footer
         }
         .padding(16)
-        .frame(width: 320)
+        .frame(minWidth: 300, idealWidth: 340, maxWidth: 500)
         .onReceive(timer) { t in now = t }
     }
 
@@ -129,10 +129,14 @@ struct PopoverView: View {
                 Text("Cached · \(age)")
                     .font(.caption2)
                     .foregroundColor(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
             } else if let at = state.fetchedAt {
                 Text("Updated \(at, style: .time)")
                     .font(.caption2)
                     .foregroundColor(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
             }
             Spacer()
             Button("Quit") {
@@ -153,14 +157,25 @@ struct UsageCard: View {
     let window: UsageWindow
     let now:    Date
 
+    @Environment(\.colorScheme) private var colorScheme
+
     private var level: UtilizationLevel { UtilizationLevel(fraction: window.fraction) }
 
     private var accentColor: Color {
+        let dark = colorScheme == .dark
         switch level {
-        case .low:      return .green
-        case .medium:   return .yellow
-        case .high:     return .orange
-        case .critical: return .red
+        case .low:
+            return dark ? Color(red: 0.133, green: 0.773, blue: 0.369)
+                        : Color(red: 0.086, green: 0.396, blue: 0.204)
+        case .medium:
+            return dark ? Color(red: 0.984, green: 0.749, blue: 0.141)
+                        : Color(red: 0.573, green: 0.251, blue: 0.055)
+        case .high:
+            return dark ? Color(red: 0.984, green: 0.573, blue: 0.235)
+                        : Color(red: 0.604, green: 0.204, blue: 0.071)
+        case .critical:
+            return dark ? Color(red: 0.973, green: 0.443, blue: 0.443)
+                        : Color(red: 0.600, green: 0.106, blue: 0.106)
         }
     }
 
