@@ -7,6 +7,7 @@ struct PopoverView: View {
 
     @EnvironmentObject private var state:    AppState
     @EnvironmentObject private var settings: AppSettings
+    @Environment(\.openSettings) private var openSettings
     @State private var now = Date()
 
     let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
@@ -58,7 +59,10 @@ struct PopoverView: View {
             .disabled(!state.canRefresh)
             .help(state.canRefresh ? "Refresh now" : "Wait \(state.cooldownRemaining)s before refreshing")
 
-            SettingsLink {
+            Button {
+                openSettings()
+                NSApp.activate(ignoringOtherApps: true)
+            } label: {
                 Image(systemName: "gear")
                     .imageScale(.small)
             }
