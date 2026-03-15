@@ -34,7 +34,10 @@ final class AppState: ObservableObject {
     let settings       = AppSettings()
     let api            = APIService()
     let cache          = CacheService()
+    let history        = HistoryService()
     let polling:       PollingManager
+
+    @Published var usageHistory: [UsageDataPoint] = []
 
     // MARK: - Notification state
 
@@ -54,6 +57,7 @@ final class AppState: ObservableObject {
             self.fetchedAt     = cached.fetchedAt
             self.isFromCache   = true
         }
+        usageHistory = history.points
     }
 
     // MARK: - Refresh
@@ -71,6 +75,8 @@ final class AppState: ObservableObject {
             isFromCache   = false
             error         = nil
             cache.save(response)
+            history.append(from: response)
+            usageHistory = history.points
 
             let level = utilizationLevel
             polling.updateInterval(

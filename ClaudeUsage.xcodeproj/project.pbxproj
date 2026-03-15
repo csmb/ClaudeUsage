@@ -20,6 +20,7 @@
 		0F6E81CE2F5953FD006C22F7 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F6E81C02F5953FD006C22F7 /* SettingsView.swift */; };
 		0F6E81CF2F5953FD006C22F7 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F6E81B12F5953FD006C22F7 /* AppDelegate.swift */; };
 		0F6E81D02F5953FD006C22F7 /* PollingManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F6E81B52F5953FD006C22F7 /* PollingManager.swift */; };
+		0F6E81D32F5953FD006C22F7 /* HistoryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F6E81D22F5953FD006C22F7 /* HistoryService.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -52,6 +53,7 @@
 		0F6E81B92F5953FD006C22F7 /* UsageData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageData.swift; sourceTree = "<group>"; };
 		0F6E81BB2F5953FD006C22F7 /* APIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIService.swift; sourceTree = "<group>"; };
 		0F6E81BC2F5953FD006C22F7 /* CacheService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CacheService.swift; sourceTree = "<group>"; };
+		0F6E81D22F5953FD006C22F7 /* HistoryService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryService.swift; sourceTree = "<group>"; };
 		0F6E81BD2F5953FD006C22F7 /* KeychainService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainService.swift; sourceTree = "<group>"; };
 		0F6E81BF2F5953FD006C22F7 /* PopoverView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PopoverView.swift; sourceTree = "<group>"; };
 		0F6E81C02F5953FD006C22F7 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
@@ -157,6 +159,7 @@
 			children = (
 				0F6E81BB2F5953FD006C22F7 /* APIService.swift */,
 				0F6E81BC2F5953FD006C22F7 /* CacheService.swift */,
+				0F6E81D22F5953FD006C22F7 /* HistoryService.swift */,
 				0F6E81BD2F5953FD006C22F7 /* KeychainService.swift */,
 			);
 			path = Services;
@@ -341,6 +344,7 @@
 				0F6E81CE2F5953FD006C22F7 /* SettingsView.swift in Sources */,
 				0F6E81CF2F5953FD006C22F7 /* AppDelegate.swift in Sources */,
 				0F6E81D02F5953FD006C22F7 /* PollingManager.swift in Sources */,
+				0F6E81D32F5953FD006C22F7 /* HistoryService.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

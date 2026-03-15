@@ -1,4 +1,5 @@
 import SwiftUI
+import Charts
 import Combine
 
 /// Main popover content: usage cards + countdown timers + footer.
@@ -71,15 +72,46 @@ struct PopoverView: View {
     private func usageCards(_ response: UsageResponse) -> some View {
         VStack(spacing: 8) {
             if let w = response.fiveHour {
-                UsageCard(label: "5-Hour Window", window: w, now: now)
+                UsageCard(
+                    label:       "5-Hour Window",
+                    window:      w,
+                    now:         now,
+                    chartData:   chartPoints(field: \.fiveHourPct, hours: 5),
+                    windowHours: 5
+                )
             }
             if let w = response.sevenDay {
-                UsageCard(label: "7-Day Window", window: w, now: now)
+                UsageCard(
+                    label:       "7-Day Window",
+                    window:      w,
+                    now:         now,
+                    chartData:   chartPoints(field: \.sevenDayPct, hours: 168),
+                    windowHours: 168
+                )
             }
             if let w = response.sevenDayOpus {
-                UsageCard(label: "Opus (7-Day)", window: w, now: now)
+                UsageCard(
+                    label:       "Opus (7-Day)",
+                    window:      w,
+                    now:         now,
+                    chartData:   chartPoints(field: \.sevenDayOpusPct, hours: 168),
+                    windowHours: 168
+                )
             }
         }
+    }
+
+    private func chartPoints(
+        field: KeyPath<UsageDataPoint, Double?>,
+        hours: Double
+    ) -> [(timestamp: Date, pct: Double)] {
+        let cutoff = Date().addingTimeInterval(-hours * 3600)
+        return state.usageHistory
+            .filter { $0.timestamp >= cutoff }
+            .compactMap { pt in
+                guard let pct = pt[keyPath: field] else { return nil }
+                return (timestamp: pt.timestamp, pct: pct)
+            }
     }
 
     // MARK: - States
@@ -153,9 +185,11 @@ struct PopoverView: View {
 
 struct UsageCard: View {
 
-    let label:  String
-    let window: UsageWindow
-    let now:    Date
+    let label:       String
+    let window:      UsageWindow
+    let now:         Date
+    let chartData:   [(timestamp: Date, pct: Double)]
+    let windowHours: Double
 
     @Environment(\.colorScheme) private var colorScheme
 
@@ -191,18 +225,7 @@ struct UsageCard: View {
                     .foregroundColor(accentColor)
             }
 
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 3)
-                        .fill(Color.secondary.opacity(0.2))
-                        .frame(height: 6)
-                    RoundedRectangle(cornerRadius: 3)
-                        .fill(accentColor)
-                        .frame(width: geo.size.width * window.fraction, height: 6)
-                        .animation(.easeOut(duration: 0.4), value: window.fraction)
-                }
-            }
-            .frame(height: 6)
+            usageChart
 
             HStack {
                 Spacer()
@@ -214,6 +237,71 @@ struct UsageCard: View {
         .padding(10)
         .background(Color(NSColor.controlBackgroundColor))
         .cornerRadius(8)
+    }
+
+    // MARK: - Time-Series Chart
+
+    @ViewBuilder
+    private var usageChart: some View {
+        if chartData.isEmpty {
+            Text("No history yet — data accumulates as the app polls.")
+                .font(.caption2)
+                .foregroundColor(.secondary)
+                .frame(maxWidth: .infinity, alignment: .center)
+                .frame(height: 80)
+        } else {
+            let windowStart = now.addingTimeInterval(-windowHours * 3600)
+            Chart {
+                ForEach(chartData, id: \.timestamp) { point in
+                    AreaMark(
+                        x: .value("Time", point.timestamp),
+                        y: .value("Usage %", point.pct)
+                    )
+                    .foregroundStyle(accentColor.opacity(0.15))
+                    .interpolationMethod(.catmullRom)
+
+                    LineMark(
+                        x: .value("Time", point.timestamp),
+                        y: .value("Usage %", point.pct)
+                    )
+                    .foregroundStyle(accentColor)
+                    .interpolationMethod(.catmullRom)
+                }
+                // Current value dot
+                if let latest = chartData.last {
+                    PointMark(
+                        x: .value("Time", latest.timestamp),
+                        y: .value("Usage %", latest.pct)
+                    )
+                    .foregroundStyle(accentColor)
+                    .symbolSize(30)
+                }
+            }
+            .chartYScale(domain: 0...100)
+            .chartXScale(domain: windowStart...now)
+            .chartYAxis {
+                AxisMarks(values: [0, 50, 100]) { value in
+                    AxisValueLabel {
+                        if let v = value.as(Int.self) {
+                            Text("\(v)%").font(.caption2)
+                        }
+                    }
+                    AxisGridLine().foregroundStyle(Color.secondary.opacity(0.2))
+                }
+            }
+            .chartXAxis {
+                AxisMarks(preset: .automatic, values: .automatic(desiredCount: 4)) { _ in
+                    AxisValueLabel(
+                        format: windowHours <= 24
+                            ? .dateTime.hour().minute()
+                            : .dateTime.month().day()
+                    )
+                    .font(.caption2)
+                    AxisGridLine().foregroundStyle(Color.secondary.opacity(0.2))
+                }
+            }
+            .frame(height: 80)
+        }
     }
 }
 

@@ -27,6 +27,16 @@ struct UsageWindow: Codable {
     var percent:  Int    { Int(utilization.rounded()) }
 }
 
+// MARK: - History Data Point
+
+struct UsageDataPoint: Codable, Identifiable {
+    let id:              UUID
+    let timestamp:       Date
+    let fiveHourPct:     Double?
+    let sevenDayPct:     Double?
+    let sevenDayOpusPct: Double?
+}
+
 // MARK: - Cached Snapshot
 
 struct CachedUsage: Codable {
