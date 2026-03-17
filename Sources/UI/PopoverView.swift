@@ -112,9 +112,8 @@ struct PopoverView: View {
         let cutoff = Date().addingTimeInterval(-hours * 3600)
         return state.usageHistory
             .filter { $0.timestamp >= cutoff }
-            .compactMap { pt in
-                guard let pct = pt[keyPath: field] else { return nil }
-                return (timestamp: pt.timestamp, pct: pct)
+            .map { pt in
+                (timestamp: pt.timestamp, pct: pt[keyPath: field] ?? 0.0)
             }
     }
 
