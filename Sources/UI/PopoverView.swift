@@ -252,58 +252,189 @@ struct UsageCard: View {
                 .foregroundColor(.secondary)
                 .frame(maxWidth: .infinity, alignment: .center)
                 .frame(height: 80)
+        } else if windowHours == 5, let resetsAt = window.resetsAt {
+            fiveHourCharts(resetsAt: resetsAt)
         } else {
-            let windowStart = now.addingTimeInterval(-windowHours * 3600)
-            Chart {
-                ForEach(chartData, id: \.timestamp) { point in
-                    AreaMark(
-                        x: .value("Time", point.timestamp),
-                        y: .value("Usage %", point.pct)
-                    )
-                    .foregroundStyle(accentColor.opacity(0.15))
-                    .interpolationMethod(.catmullRom)
+            UsageChartView(
+                data: chartData,
+                domainStart: now.addingTimeInterval(-windowHours * 3600),
+                domainEnd: now,
+                accentColor: accentColor,
+                height: 80,
+                windowHours: windowHours,
+                compact: false
+            )
+        }
+    }
 
-                    LineMark(
-                        x: .value("Time", point.timestamp),
-                        y: .value("Usage %", point.pct)
-                    )
-                    .foregroundStyle(accentColor)
-                    .interpolationMethod(.catmullRom)
-                }
-                // Current value dot
-                if let latest = chartData.last {
-                    PointMark(
-                        x: .value("Time", latest.timestamp),
-                        y: .value("Usage %", latest.pct)
-                    )
-                    .foregroundStyle(accentColor)
-                    .symbolSize(30)
+    private func fiveHourCharts(resetsAt: Date) -> some View {
+        let sessionStart = resetsAt.addingTimeInterval(-5 * 3600)
+        let sessionData = chartData.filter { $0.timestamp >= sessionStart }
+        let oneHourAgo = now.addingTimeInterval(-3600)
+        let lastHourData = chartData.filter { $0.timestamp >= oneHourAgo }
+
+        return VStack(alignment: .leading, spacing: 4) {
+            UsageChartView(
+                data: sessionData,
+                domainStart: sessionStart,
+                domainEnd: resetsAt,
+                accentColor: accentColor,
+                height: 55,
+                windowHours: 5,
+                compact: false
+            )
+
+            if lastHourData.count >= 2 {
+                Text("Last hour")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                UsageChartView(
+                    data: lastHourData,
+                    domainStart: oneHourAgo,
+                    domainEnd: now,
+                    accentColor: accentColor,
+                    height: 35,
+                    windowHours: 1,
+                    compact: true
+                )
+            }
+        }
+    }
+}
+
+// MARK: - UsageChartView
+
+struct UsageChartView: View {
+
+    let data: [(timestamp: Date, pct: Double)]
+    let domainStart: Date
+    let domainEnd: Date
+    let accentColor: Color
+    let height: CGFloat
+    let windowHours: Double
+    let compact: Bool
+
+    @State private var hoverInfo: (date: Date, value: Double)?
+
+    var body: some View {
+        if data.isEmpty {
+            Text("No history yet")
+                .font(.caption2)
+                .foregroundColor(.secondary)
+                .frame(maxWidth: .infinity, alignment: .center)
+                .frame(height: height)
+        } else {
+            Group {
+                if compact {
+                    baseChart
+                        .chartYAxis {
+                            AxisMarks(values: [0, 50, 100]) { _ in
+                                AxisGridLine().foregroundStyle(Color.secondary.opacity(0.2))
+                            }
+                        }
+                } else {
+                    baseChart
+                        .chartYAxis {
+                            AxisMarks(values: [0, 50, 100]) { value in
+                                AxisValueLabel {
+                                    if let v = value.as(Int.self) {
+                                        Text("\(v)%").font(.caption2)
+                                    }
+                                }
+                                AxisGridLine().foregroundStyle(Color.secondary.opacity(0.2))
+                            }
+                        }
                 }
             }
-            .chartYScale(domain: 0...100)
-            .chartXScale(domain: windowStart...now)
-            .chartYAxis {
-                AxisMarks(values: [0, 50, 100]) { value in
-                    AxisValueLabel {
-                        if let v = value.as(Int.self) {
-                            Text("\(v)%").font(.caption2)
+            .frame(height: height)
+        }
+    }
+
+    private var baseChart: some View {
+        Chart {
+            ForEach(data, id: \.timestamp) { point in
+                AreaMark(
+                    x: .value("Time", point.timestamp),
+                    y: .value("Usage %", point.pct)
+                )
+                .foregroundStyle(accentColor.opacity(0.15))
+                .interpolationMethod(.catmullRom)
+
+                LineMark(
+                    x: .value("Time", point.timestamp),
+                    y: .value("Usage %", point.pct)
+                )
+                .foregroundStyle(accentColor)
+                .interpolationMethod(.catmullRom)
+            }
+
+            if let latest = data.last {
+                PointMark(
+                    x: .value("Time", latest.timestamp),
+                    y: .value("Usage %", latest.pct)
+                )
+                .foregroundStyle(accentColor)
+                .symbolSize(30)
+            }
+
+            if let hover = hoverInfo {
+                RuleMark(x: .value("Hover", hover.date))
+                    .foregroundStyle(Color.secondary.opacity(0.3))
+                    .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3]))
+                PointMark(
+                    x: .value("Time", hover.date),
+                    y: .value("Usage %", hover.value)
+                )
+                .foregroundStyle(accentColor)
+                .symbolSize(40)
+                .annotation(position: hover.value > 75 ? .bottom : .top) {
+                    Text("\(Int(hover.value.rounded()))%")
+                        .font(.caption2.monospacedDigit().bold())
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 2)
+                        .background(Color(NSColor.controlBackgroundColor))
+                        .cornerRadius(3)
+                        .shadow(color: .black.opacity(0.1), radius: 1)
+                }
+            }
+        }
+        .chartYScale(domain: 0...100)
+        .chartXScale(domain: domainStart...domainEnd)
+        .chartXAxis {
+            AxisMarks(preset: .automatic, values: .automatic(desiredCount: compact ? 3 : 4)) { _ in
+                AxisValueLabel(
+                    format: windowHours <= 24
+                        ? .dateTime.hour().minute()
+                        : .dateTime.month().day()
+                )
+                .font(.caption2)
+                AxisGridLine().foregroundStyle(Color.secondary.opacity(0.2))
+            }
+        }
+        .chartOverlay { proxy in
+            GeometryReader { _ in
+                Rectangle()
+                    .fill(.clear)
+                    .contentShape(Rectangle())
+                    .onContinuousHover { phase in
+                        switch phase {
+                        case .active(let location):
+                            guard let date: Date = proxy.value(atX: location.x) else {
+                                hoverInfo = nil
+                                return
+                            }
+                            guard let nearest = data.min(by: {
+                                abs($0.timestamp.timeIntervalSince(date)) < abs($1.timestamp.timeIntervalSince(date))
+                            }) else {
+                                hoverInfo = nil
+                                return
+                            }
+                            hoverInfo = (date: nearest.timestamp, value: nearest.pct)
+                        case .ended:
+                            hoverInfo = nil
                         }
                     }
-                    AxisGridLine().foregroundStyle(Color.secondary.opacity(0.2))
-                }
             }
-            .chartXAxis {
-                AxisMarks(preset: .automatic, values: .automatic(desiredCount: 4)) { _ in
-                    AxisValueLabel(
-                        format: windowHours <= 24
-                            ? .dateTime.hour().minute()
-                            : .dateTime.month().day()
-                    )
-                    .font(.caption2)
-                    AxisGridLine().foregroundStyle(Color.secondary.opacity(0.2))
-                }
-            }
-            .frame(height: 80)
         }
     }
 }
