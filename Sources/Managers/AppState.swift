@@ -16,15 +16,21 @@ final class AppState: ObservableObject {
     @Published var error:         String?             = nil
     @Published var isFromCache:   Bool                = false
     @Published var lastFetchedAt: Date?              = nil
+    @Published var rateLimitedUntil: Date?           = nil
 
     private let refreshCooldown: TimeInterval = 30
 
     var canRefresh: Bool {
+        if let rlUntil = rateLimitedUntil, Date() < rlUntil { return false }
         guard let last = lastFetchedAt else { return true }
         return Date().timeIntervalSince(last) >= refreshCooldown
     }
 
     var cooldownRemaining: Int {
+        if let rlUntil = rateLimitedUntil {
+            let remaining = Int(rlUntil.timeIntervalSinceNow)
+            if remaining > 0 { return remaining }
+        }
         guard let last = lastFetchedAt else { return 0 }
         return max(0, Int(refreshCooldown - Date().timeIntervalSince(last)))
     }
@@ -68,15 +74,21 @@ final class AppState: ObservableObject {
         defer { isLoading = false }
 
         do {
-            let response = try await api.fetchUsage()
-            usageResponse = response
+            let result = try await api.fetchUsage()
+            usageResponse = result.response
             fetchedAt     = Date()
             lastFetchedAt = Date()
-            isFromCache   = false
-            error         = nil
-            cache.save(response)
-            history.append(from: response)
+            isFromCache      = false
+            error            = nil
+            rateLimitedUntil = nil
+            cache.save(result.response)
+            history.append(from: result.response)
             usageHistory = history.points
+
+            // If the API tells us how many requests remain, log it
+            if let remaining = result.rateLimit.remaining, let limit = result.rateLimit.limit {
+                print("[AppState] Rate limit: \(remaining)/\(limit) remaining")
+            }
 
             let level = utilizationLevel
             polling.updateInterval(
@@ -85,11 +97,13 @@ final class AppState: ObservableObject {
                     : level.pollInterval
             )
 
-            checkNotifications(for: response)
+            checkNotifications(for: result.response)
 
         } catch APIError.rateLimited(let retryAfter) {
-            let backoff = max(60, retryAfter)   // always wait at least 60s
-            self.error = "Rate limited — next refresh in \(Int(backoff))s"
+            let backoff = max(60, retryAfter)
+            rateLimitedUntil = Date().addingTimeInterval(backoff)
+            let mins = Int(backoff / 60)
+            self.error = mins > 0 ? "Rate limited — retrying in \(mins)m" : "Rate limited"
             polling.updateInterval(backoff)
         } catch {
             self.error = error.localizedDescription

@@ -12,6 +12,39 @@ import Foundation
 /// - URLSession is created fresh for each APIService instance
 ///   so there is no shared/ambient session with stale config.
 
+/// Rate limit info extracted from response headers.
+struct RateLimitInfo {
+    let limit:     Int?      // max requests allowed in window
+    let remaining: Int?      // requests remaining in window
+    let resetAt:   Date?     // when the window resets
+
+    init(headers: [String: String]) {
+        limit     = headers["x-ratelimit-limit"].flatMap(Int.init)
+        remaining = headers["x-ratelimit-remaining"].flatMap(Int.init)
+        if let resetStr = headers["x-ratelimit-reset"] {
+            let iso = ISO8601DateFormatter()
+            iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            resetAt = iso.date(from: resetStr)
+        } else {
+            resetAt = nil
+        }
+    }
+
+    var description: String {
+        var parts: [String] = []
+        if let l = limit     { parts.append("limit=\(l)") }
+        if let r = remaining { parts.append("remaining=\(r)") }
+        if let d = resetAt   { parts.append("reset=\(d)") }
+        return parts.isEmpty ? "none" : parts.joined(separator: ", ")
+    }
+}
+
+/// Result from a successful usage fetch, including rate limit metadata.
+struct UsageFetchResult {
+    let response:  UsageResponse
+    let rateLimit: RateLimitInfo
+}
+
 enum APIError: LocalizedError {
     case noCredentials(Error)
     case networkError(Error)
@@ -64,7 +97,7 @@ final class APIService {
     // MARK: - Public API
 
     /// Fetch current usage from api.anthropic.com/v1/usage.
-    func fetchUsage() async throws -> UsageResponse {
+    func fetchUsage() async throws -> UsageFetchResult {
         let credentials: OAuthCredentials
         do {
             credentials = try KeychainService.loadCredentials()
@@ -91,19 +124,40 @@ final class APIService {
             throw APIError.networkError(error)
         }
 
-        if let http = response as? HTTPURLResponse {
-            switch http.statusCode {
-            case 200...299: break
-            case 401:
-                KeychainService.invalidateCredentials()
-                throw APIError.invalidCredentials
-            case 429:
-                let retry = (http.value(forHTTPHeaderField: "retry-after"))
-                    .flatMap(TimeInterval.init)
-                    .flatMap { $0 > 0 ? $0 : nil } ?? 60
-                throw APIError.rateLimited(retryAfter: retry)
-            default:  throw APIError.httpError(http.statusCode)
-            }
+        guard let http = response as? HTTPURLResponse else {
+            throw APIError.httpError(0)
+        }
+
+        // Collect all headers (lowercased keys) for rate limit inspection
+        let headerPairs: [(String, String)] = http.allHeaderFields.compactMap { key, value in
+            guard let k = key as? String, let v = value as? String else { return nil }
+            return (k.lowercased(), v)
+        }
+        let headers = Dictionary(headerPairs, uniquingKeysWith: { _, last in last })
+
+        let rateLimit = RateLimitInfo(headers: headers)
+
+        // Log rate limit headers on every response
+        let rlHeaders = headers.filter { $0.key.contains("ratelimit") || $0.key.contains("rate-limit") || $0.key == "retry-after" }
+        if !rlHeaders.isEmpty {
+            print("[APIService] Rate limit headers: \(rlHeaders)")
+        } else {
+            print("[APIService] No rate limit headers in response")
+        }
+        Self.logRateLimitToFile(statusCode: http.statusCode, headers: headers)
+
+        switch http.statusCode {
+        case 200...299: break
+        case 401:
+            KeychainService.invalidateCredentials()
+            throw APIError.invalidCredentials
+        case 429:
+            print("[APIService] 429 — all headers: \(headers)")
+            let retry = headers["retry-after"]
+                .flatMap(TimeInterval.init)
+                .flatMap { $0 > 0 ? $0 : nil } ?? 60
+            throw APIError.rateLimited(retryAfter: retry)
+        default:  throw APIError.httpError(http.statusCode)
         }
 
         let decoder = JSONDecoder()
@@ -121,9 +175,38 @@ final class APIService {
         }
 
         do {
-            return try decoder.decode(UsageResponse.self, from: data)
+            let usage = try decoder.decode(UsageResponse.self, from: data)
+            return UsageFetchResult(response: usage, rateLimit: rateLimit)
         } catch {
             throw APIError.decodingError(error)
+        }
+    }
+
+    // MARK: - Rate Limit File Log
+
+    private static let logFile: URL = {
+        let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
+        let dir = caches.appendingPathComponent(Bundle.main.bundleIdentifier ?? "ClaudeUsage")
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir.appendingPathComponent("ratelimit_log.txt")
+    }()
+
+    private static func logRateLimitToFile(statusCode: Int, headers: [String: String]) {
+        let rl = headers.filter { $0.key.contains("ratelimit") || $0.key.contains("rate-limit") || $0.key == "retry-after" }
+        guard !rl.isEmpty else { return }
+
+        let iso = ISO8601DateFormatter()
+        iso.formatOptions = [.withInternetDateTime]
+        let ts = iso.string(from: Date())
+
+        let line = "\(ts) status=\(statusCode) \(rl.sorted(by: { $0.key < $1.key }).map { "\($0.key)=\($0.value)" }.joined(separator: " "))\n"
+
+        if let handle = try? FileHandle(forWritingTo: logFile) {
+            handle.seekToEndOfFile()
+            handle.write(line.data(using: .utf8) ?? Data())
+            handle.closeFile()
+        } else {
+            try? line.data(using: .utf8)?.write(to: logFile)
         }
     }
 }
