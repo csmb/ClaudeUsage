@@ -1,4 +1,4 @@
-# CLAUDE.md — ClaudeUsage
+# AGENTS.md — ClaudeUsage
 
 macOS menu bar app that shows Claude Code API usage (5-hour, 7-day, and 7-day Opus windows) with color-coded percentages, time-series charts, countdown timers, and threshold notifications.
 
@@ -7,7 +7,7 @@ macOS menu bar app that shows Claude Code API usage (5-hour, 7-day, and 7-day Op
 - **Language:** Swift (SwiftUI + AppKit hybrid)
 - **Target:** macOS 13+ (Ventura), no sandbox
 - **UI:** Menu bar popover (LSUIElement — no Dock icon), SwiftUI `Settings` scene for preferences
-- **Charts:** Swift Charts (`AreaMark` + `LineMark`)
+- **Charts:** Swift Charts (`AreaMark` + `LineMark`) with green-to-red gradient based on usage %
 - **Build:** Xcode project (`ClaudeUsage.xcodeproj`), no SPM dependencies
 
 ## Architecture
@@ -44,6 +44,7 @@ Scripts/
 - **Credential watcher.** Monitors `~/.config/claude/` for file changes to detect token refreshes without aggressive polling.
 - **Color-coded per window.** Each usage window (5h, 7d) is colored independently by its own utilization level, both in the menu bar and in the popover cards.
 - **Dark/light mode aware.** All accent colors have explicit dark and light variants.
+- **Menu bar always shows percentages.** Two color-coded percentages (5h and 7d) separated by a dot. No icon-only or other display modes.
 
 ## Auth Flow
 
