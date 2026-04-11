@@ -84,8 +84,19 @@ struct PopoverView: View {
     private func usageCards(_ response: UsageResponse) -> some View {
         VStack(spacing: 8) {
             if let w = response.fiveHour {
+                let lastHourData = chartPoints(field: \.fiveHourPct, hours: 1)
+                if lastHourData.count >= 2 {
+                    UsageCard(
+                        label:         "Last Hour",
+                        window:        w,
+                        now:           now,
+                        chartData:     lastHourData,
+                        windowHours:   1,
+                        showCountdown: false
+                    )
+                }
                 UsageCard(
-                    label:       "5-Hour Window",
+                    label:       "5 Hour Window",
                     window:      w,
                     now:         now,
                     chartData:   chartPoints(field: \.fiveHourPct, hours: 5),
@@ -94,7 +105,7 @@ struct PopoverView: View {
             }
             if let w = response.sevenDay {
                 UsageCard(
-                    label:       "7-Day Window",
+                    label:       "7 Day Window",
                     window:      w,
                     now:         now,
                     chartData:   chartPoints(field: \.sevenDayPct, hours: 168),
@@ -103,7 +114,7 @@ struct PopoverView: View {
             }
             if let w = response.sevenDayOpus {
                 UsageCard(
-                    label:       "Opus (7-Day)",
+                    label:       "Opus (7 Day)",
                     window:      w,
                     now:         now,
                     chartData:   chartPoints(field: \.sevenDayOpusPct, hours: 168),
@@ -196,11 +207,12 @@ struct PopoverView: View {
 
 struct UsageCard: View {
 
-    let label:       String
-    let window:      UsageWindow
-    let now:         Date
-    let chartData:   [(timestamp: Date, pct: Double)]
-    let windowHours: Double
+    let label:         String
+    let window:        UsageWindow
+    let now:           Date
+    let chartData:     [(timestamp: Date, pct: Double)]
+    let windowHours:   Double
+    var showCountdown: Bool = true
 
     @Environment(\.colorScheme) private var colorScheme
 
@@ -238,10 +250,12 @@ struct UsageCard: View {
 
             usageChart
 
-            HStack {
-                Spacer()
-                if let reset = window.resetsAt {
-                    CountdownView(targetDate: reset, now: now)
+            if showCountdown {
+                HStack {
+                    Spacer()
+                    if let reset = window.resetsAt {
+                        CountdownView(targetDate: reset, now: now)
+                    }
                 }
             }
         }
@@ -259,56 +273,17 @@ struct UsageCard: View {
                 .font(.caption2)
                 .foregroundColor(.secondary)
                 .frame(maxWidth: .infinity, alignment: .center)
-                .frame(height: 80)
-        } else if windowHours == 5, let resetsAt = window.resetsAt {
-            fiveHourCharts(resetsAt: resetsAt)
+                .frame(height: 60)
         } else {
             UsageChartView(
                 data: chartData,
                 domainStart: now.addingTimeInterval(-windowHours * 3600),
                 domainEnd: now,
                 accentColor: accentColor,
-                height: 80,
-                windowHours: windowHours,
-                compact: false
-            )
-        }
-    }
-
-    private func fiveHourCharts(resetsAt: Date) -> some View {
-        let sessionStart = resetsAt.addingTimeInterval(-5 * 3600)
-        let sessionData = chartData.filter { $0.timestamp >= sessionStart }
-        let oneHourAgo = now.addingTimeInterval(-3600)
-        let lastHourData = chartData.filter { $0.timestamp >= oneHourAgo }
-
-        return VStack(alignment: .leading, spacing: 8) {
-            UsageChartView(
-                data: sessionData,
-                domainStart: sessionStart,
-                domainEnd: resetsAt,
-                accentColor: accentColor,
                 height: 60,
-                windowHours: 5,
-                compact: false
+                windowHours: windowHours,
+                compact: windowHours <= 1
             )
-
-            if lastHourData.count >= 2 {
-                Divider()
-                    .padding(.vertical, 2)
-                Text("Last Hour")
-                    .font(.caption2)
-                    .fontWeight(.medium)
-                    .foregroundColor(.secondary)
-                UsageChartView(
-                    data: lastHourData,
-                    domainStart: oneHourAgo,
-                    domainEnd: now,
-                    accentColor: accentColor,
-                    height: 50,
-                    windowHours: 1,
-                    compact: true
-                )
-            }
         }
     }
 }
@@ -425,14 +400,42 @@ struct UsageChartView: View {
         .chartYScale(domain: 0...100)
         .chartXScale(domain: domainStart...domainEnd)
         .chartXAxis {
-            AxisMarks(preset: .automatic, values: .automatic(desiredCount: compact ? 3 : 4)) { _ in
-                AxisValueLabel(
-                    format: windowHours <= 24
-                        ? .dateTime.hour(.defaultDigits(amPM: .omitted))
-                        : .dateTime.month().day()
-                )
-                .font(.caption2)
-                AxisGridLine().foregroundStyle(Color.secondary.opacity(0.2))
+            if windowHours <= 1 {
+                AxisMarks(values: [
+                    domainEnd,
+                    domainEnd.addingTimeInterval(-15 * 60),
+                    domainEnd.addingTimeInterval(-30 * 60),
+                    domainEnd.addingTimeInterval(-45 * 60),
+                    domainStart
+                ]) { value in
+                    AxisValueLabel {
+                        if let date = value.as(Date.self) {
+                            let mins = Int(domainEnd.timeIntervalSince(date) / 60)
+                            Text(mins == 0 ? "now" : mins == 60 ? "1h" : "\(mins)m")
+                                .font(.caption2)
+                        }
+                    }
+                    AxisGridLine().foregroundStyle(Color.secondary.opacity(0.2))
+                }
+            } else if windowHours <= 24 {
+                AxisMarks(preset: .automatic, values: .automatic(desiredCount: 4)) { value in
+                    AxisValueLabel {
+                        if let date = value.as(Date.self) {
+                            let hour = Calendar.current.component(.hour, from: date)
+                            let h12 = hour == 0 ? 12 : (hour > 12 ? hour - 12 : hour)
+                            let ap = hour < 12 ? "a" : "p"
+                            Text("\(h12)\(ap)")
+                                .font(.caption2)
+                        }
+                    }
+                    AxisGridLine().foregroundStyle(Color.secondary.opacity(0.2))
+                }
+            } else {
+                AxisMarks(preset: .automatic, values: .automatic(desiredCount: 4)) { _ in
+                    AxisValueLabel(format: .dateTime.month().day())
+                        .font(.caption2)
+                    AxisGridLine().foregroundStyle(Color.secondary.opacity(0.2))
+                }
             }
         }
         .chartOverlay { proxy in
@@ -513,11 +516,11 @@ struct CountdownView: View {
         if days > 0 {
             return "\(days)d \(hours)h \(mins)m"
         } else if hours > 0 {
-            return String(format: "%dh %02dm", hours, mins)
+            return mins > 0 ? "\(hours)h \(mins)m" : "\(hours)h"
         } else if mins > 0 {
-            return String(format: "%dm %02ds", mins, secs)
+            return secs > 0 ? "\(mins)m \(secs)s" : "\(mins)m"
         } else {
-            return String(format: "%ds", secs)
+            return "\(secs)s"
         }
     }
 }
