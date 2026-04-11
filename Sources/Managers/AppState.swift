@@ -110,11 +110,10 @@ final class AppState: ObservableObject {
     var menuBarAttributedTitle: NSAttributedString {
         let font = NSFont.monospacedDigitSystemFont(ofSize: 13, weight: .medium)
 
-        guard let r = usageResponse, settings.displayMode != .iconOnly else {
-            let dots = NSMutableAttributedString(string: "…", attributes: [
+        guard let r = usageResponse else {
+            return NSAttributedString(string: "…", attributes: [
                 .font: font, .foregroundColor: NSColor.secondaryLabelColor
             ])
-            return dots
         }
 
         func seg(_ pct: Int, _ fraction: Double) -> NSAttributedString {

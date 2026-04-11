@@ -1,20 +1,10 @@
 import SwiftUI
-import ServiceManagement
 
 struct SettingsView: View {
 
     @EnvironmentObject private var settings: AppSettings
-
     var body: some View {
         Form {
-            Section("Menu Bar") {
-                Picker("Display mode", selection: $settings.displayModeRaw) {
-                    ForEach(AppSettings.DisplayMode.allCases) { mode in
-                        Text(mode.rawValue).tag(mode.rawValue)
-                    }
-                }
-                .pickerStyle(.radioGroup)
-            }
             Section("Refresh") {
                 Picker("Interval", selection: $settings.pollIntervalOverride) {
                     Text("Adaptive (recommended)").tag(0.0)
@@ -32,13 +22,6 @@ struct SettingsView: View {
                     .disabled(!settings.notificationsEnabled)
                 Toggle("95% usage", isOn: $settings.notify95)
                     .disabled(!settings.notificationsEnabled)
-            }
-            Section("System") {
-                Button("Manage Login Items…") {
-                    if #available(macOS 13.0, *) {
-                        SMAppService.openSystemSettingsLoginItems()
-                    }
-                }
             }
         }
         .formStyle(.grouped)
