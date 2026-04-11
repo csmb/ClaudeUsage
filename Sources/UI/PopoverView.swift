@@ -273,27 +273,30 @@ struct UsageCard: View {
         let oneHourAgo = now.addingTimeInterval(-3600)
         let lastHourData = chartData.filter { $0.timestamp >= oneHourAgo }
 
-        return VStack(alignment: .leading, spacing: 4) {
+        return VStack(alignment: .leading, spacing: 8) {
             UsageChartView(
                 data: sessionData,
                 domainStart: sessionStart,
                 domainEnd: resetsAt,
                 accentColor: accentColor,
-                height: 55,
+                height: 60,
                 windowHours: 5,
                 compact: false
             )
 
             if lastHourData.count >= 2 {
-                Text("Last hour")
+                Divider()
+                    .padding(.vertical, 2)
+                Text("Last Hour")
                     .font(.caption2)
+                    .fontWeight(.medium)
                     .foregroundColor(.secondary)
                 UsageChartView(
                     data: lastHourData,
                     domainStart: oneHourAgo,
                     domainEnd: now,
                     accentColor: accentColor,
-                    height: 35,
+                    height: 50,
                     windowHours: 1,
                     compact: true
                 )
@@ -316,6 +319,30 @@ struct UsageChartView: View {
 
     @State private var hoverInfo: (date: Date, value: Double)?
 
+    private var usageGradient: LinearGradient {
+        LinearGradient(
+            stops: [
+                .init(color: .green, location: 0),
+                .init(color: .yellow, location: 0.5),
+                .init(color: .orange, location: 0.75),
+                .init(color: .red, location: 1.0),
+            ],
+            startPoint: .bottom,
+            endPoint: .top
+        )
+    }
+
+    private static func colorForPct(_ pct: Double) -> Color {
+        let t = min(max(pct / 100.0, 0), 1)
+        if t < 0.5 {
+            return Color.green.mix(with: .yellow, by: t / 0.5)
+        } else if t < 0.75 {
+            return Color.yellow.mix(with: .orange, by: (t - 0.5) / 0.25)
+        } else {
+            return Color.orange.mix(with: .red, by: (t - 0.75) / 0.25)
+        }
+    }
+
     var body: some View {
         if data.isEmpty {
             Text("No history yet")
@@ -324,29 +351,18 @@ struct UsageChartView: View {
                 .frame(maxWidth: .infinity, alignment: .center)
                 .frame(height: height)
         } else {
-            Group {
-                if compact {
-                    baseChart
-                        .chartYAxis {
-                            AxisMarks(values: [0, 50, 100]) { _ in
-                                AxisGridLine().foregroundStyle(Color.secondary.opacity(0.2))
+            baseChart
+                .chartYAxis {
+                    AxisMarks(values: [0, 50, 100]) { value in
+                        AxisValueLabel {
+                            if let v = value.as(Int.self) {
+                                Text("\(v)%").font(.caption2)
                             }
                         }
-                } else {
-                    baseChart
-                        .chartYAxis {
-                            AxisMarks(values: [0, 50, 100]) { value in
-                                AxisValueLabel {
-                                    if let v = value.as(Int.self) {
-                                        Text("\(v)%").font(.caption2)
-                                    }
-                                }
-                                AxisGridLine().foregroundStyle(Color.secondary.opacity(0.2))
-                            }
-                        }
+                        AxisGridLine().foregroundStyle(Color.secondary.opacity(0.2))
+                    }
                 }
-            }
-            .frame(height: height)
+                .frame(height: height)
         }
     }
 
@@ -357,14 +373,14 @@ struct UsageChartView: View {
                     x: .value("Time", point.timestamp),
                     y: .value("Usage %", point.pct)
                 )
-                .foregroundStyle(accentColor.opacity(0.15))
+                .foregroundStyle(usageGradient.opacity(0.2))
                 .interpolationMethod(.catmullRom)
 
                 LineMark(
                     x: .value("Time", point.timestamp),
                     y: .value("Usage %", point.pct)
                 )
-                .foregroundStyle(accentColor)
+                .foregroundStyle(usageGradient)
                 .interpolationMethod(.catmullRom)
             }
 
@@ -373,7 +389,7 @@ struct UsageChartView: View {
                     x: .value("Time", latest.timestamp),
                     y: .value("Usage %", latest.pct)
                 )
-                .foregroundStyle(accentColor)
+                .foregroundStyle(Self.colorForPct(latest.pct))
                 .symbolSize(30)
             }
 
@@ -385,7 +401,7 @@ struct UsageChartView: View {
                     x: .value("Time", hover.date),
                     y: .value("Usage %", hover.value)
                 )
-                .foregroundStyle(accentColor)
+                .foregroundStyle(Self.colorForPct(hover.value))
                 .symbolSize(40)
                 .annotation(position: hover.value > 75 ? .bottom : .top) {
                     Text("\(Int(hover.value.rounded()))%")
@@ -404,7 +420,7 @@ struct UsageChartView: View {
             AxisMarks(preset: .automatic, values: .automatic(desiredCount: compact ? 3 : 4)) { _ in
                 AxisValueLabel(
                     format: windowHours <= 24
-                        ? .dateTime.hour().minute()
+                        ? .dateTime.hour(.defaultDigits(amPM: .omitted))
                         : .dateTime.month().day()
                 )
                 .font(.caption2)
