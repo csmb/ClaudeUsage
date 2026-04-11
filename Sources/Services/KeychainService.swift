@@ -42,25 +42,112 @@ struct KeychainService {
     /// The service name Claude Code uses when it writes the token.
     static let claudeCodeService = "Claude Code-credentials"
 
+    /// Our own keychain item where we cache a copy of the credentials.
+    /// Because this app created the item, macOS never shows an ACL prompt for it.
+    private static let cachedService = "csmb.ClaudeUsage.cached-credentials"
+    private static let cachedAccount = "oauth-token"
+
+    /// In-memory credential cache — avoids hitting the keychain on every poll cycle.
+    private static var memoryCache: OAuthCredentials?
+
     // MARK: - Public API
 
-    /// Load and decode the Claude Code OAuth credentials from the Keychain.
-    /// Throws `KeychainError` if the item is absent or malformed.
+    /// Load and decode the Claude Code OAuth credentials, checking caches first.
+    ///
+    /// Resolution order:
+    /// 1. In-memory cache (valid & unexpired)
+    /// 2. App's own keychain cache (valid & unexpired)
+    /// 3. Claude Code's keychain item (may trigger system password dialog)
+    ///
+    /// After a successful read from Claude Code's keychain, the credentials
+    /// are saved to the app's own keychain so future launches skip the dialog.
     static func loadCredentials() throws -> OAuthCredentials {
+        // 1. In-memory cache
+        if let cached = memoryCache, cached.isValid {
+            return cached
+        }
+
+        // 2. App's own keychain cache
+        if let cached = loadFromOwnKeychain() {
+            memoryCache = cached
+            return cached
+        }
+
+        // 3. Claude Code's keychain (may prompt)
         let data = try readRawData(service: claudeCodeService)
         do {
-            // Primary shape: { "claudeAiOauth": { ... } }
             let wrapper = try JSONDecoder().decode(ClaudeKeychainWrapper.self, from: data)
-            return wrapper.claudeAiOauth.toCredentials()
+            let credentials = wrapper.claudeAiOauth.toCredentials()
+
+            // Cache so future launches don't prompt
+            saveToOwnKeychain(data: data)
+            memoryCache = credentials
+
+            return credentials
         } catch {
             throw KeychainError.decodingFailed(error)
         }
     }
 
-    // MARK: - Private helpers
+    /// Clear all credential caches so the next `loadCredentials()` call
+    /// re-reads from Claude Code's keychain. Call this after a 401.
+    static func invalidateCredentials() {
+        memoryCache = nil
+        deleteFromOwnKeychain()
+    }
+
+    // MARK: - Own keychain cache helpers
+
+    /// Read credentials from the app's own keychain item (never prompts).
+    private static func loadFromOwnKeychain() -> OAuthCredentials? {
+        let query: [CFString: Any] = [
+            kSecClass:       kSecClassGenericPassword,
+            kSecAttrService: cachedService as CFString,
+            kSecAttrAccount: cachedAccount as CFString,
+            kSecReturnData:  true,
+            kSecMatchLimit:  kSecMatchLimitOne
+        ]
+        var result: AnyObject?
+        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
+              let data = result as? Data,
+              let wrapper = try? JSONDecoder().decode(ClaudeKeychainWrapper.self, from: data)
+        else { return nil }
+
+        let credentials = wrapper.claudeAiOauth.toCredentials()
+        return credentials.isValid ? credentials : nil
+    }
+
+    /// Save raw credential JSON to the app's own keychain item.
+    private static func saveToOwnKeychain(data: Data) {
+        let searchQuery: [CFString: Any] = [
+            kSecClass:       kSecClassGenericPassword,
+            kSecAttrService: cachedService as CFString,
+            kSecAttrAccount: cachedAccount as CFString,
+        ]
+        let attrs: [CFString: Any] = [kSecValueData: data]
+
+        let status = SecItemUpdate(searchQuery as CFDictionary, attrs as CFDictionary)
+        if status == errSecItemNotFound {
+            var addQuery = searchQuery
+            addQuery[kSecValueData] = data
+            SecItemAdd(addQuery as CFDictionary, nil)
+        }
+    }
+
+    /// Remove the app's cached credentials from the keychain.
+    private static func deleteFromOwnKeychain() {
+        let query: [CFString: Any] = [
+            kSecClass:       kSecClassGenericPassword,
+            kSecAttrService: cachedService as CFString,
+            kSecAttrAccount: cachedAccount as CFString,
+        ]
+        SecItemDelete(query as CFDictionary)
+    }
+
+    // MARK: - Claude Code keychain access
 
     /// Reads the raw Data stored for `service` using the Security framework.
-    /// This is the ONLY entry point for Keychain access in this project.
+    /// This is the ONLY entry point for Claude Code's Keychain item in this project.
     private static func readRawData(service: String) throws -> Data {
         // Build the query dictionary.
         // kSecAttrService narrows the lookup to the exact service name.

@@ -94,7 +94,9 @@ final class APIService {
         if let http = response as? HTTPURLResponse {
             switch http.statusCode {
             case 200...299: break
-            case 401: throw APIError.invalidCredentials
+            case 401:
+                KeychainService.invalidateCredentials()
+                throw APIError.invalidCredentials
             case 429:
                 let retry = (http.value(forHTTPHeaderField: "retry-after"))
                     .flatMap(TimeInterval.init)
