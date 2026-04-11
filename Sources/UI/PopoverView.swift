@@ -37,8 +37,16 @@ struct PopoverView: View {
 
     private var header: some View {
         HStack {
-            Text("Claude Usage")
-                .font(.headline)
+            Button {
+                if let url = URL(string: "https://claude.ai/settings/usage") {
+                    NSWorkspace.shared.open(url)
+                }
+            } label: {
+                Text("Claude Usage")
+                    .font(.headline)
+            }
+            .buttonStyle(.plain)
+            .help("Open usage in browser")
             Spacer()
             if state.isLoading {
                 SpinnerView(size: 12)
