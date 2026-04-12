@@ -192,14 +192,13 @@ final class APIService {
     }()
 
     private static func logRateLimitToFile(statusCode: Int, headers: [String: String]) {
-        let rl = headers.filter { $0.key.contains("ratelimit") || $0.key.contains("rate-limit") || $0.key == "retry-after" }
-        guard !rl.isEmpty else { return }
-
         let iso = ISO8601DateFormatter()
         iso.formatOptions = [.withInternetDateTime]
         let ts = iso.string(from: Date())
 
-        let line = "\(ts) status=\(statusCode) \(rl.sorted(by: { $0.key < $1.key }).map { "\($0.key)=\($0.value)" }.joined(separator: " "))\n"
+        let rl = headers.filter { $0.key.contains("ratelimit") || $0.key.contains("rate-limit") || $0.key == "retry-after" }
+        let extra = rl.isEmpty ? "" : " " + rl.sorted(by: { $0.key < $1.key }).map { "\($0.key)=\($0.value)" }.joined(separator: " ")
+        let line = "\(ts) status=\(statusCode)\(extra)\n"
 
         if let handle = try? FileHandle(forWritingTo: logFile) {
             handle.seekToEndOfFile()

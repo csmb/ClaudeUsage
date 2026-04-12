@@ -67,9 +67,9 @@ enum UtilizationLevel: Equatable {
     var pollInterval: TimeInterval {
         switch self {
         case .low:      return 300
-        case .medium:   return 120
-        case .high:     return 60
-        case .critical: return 30
+        case .medium:   return 300
+        case .high:     return 180
+        case .critical: return 120
         }
     }
 }
