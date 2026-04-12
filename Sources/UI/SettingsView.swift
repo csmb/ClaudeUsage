@@ -9,8 +9,6 @@ struct SettingsView: View {
                 Text("Refresh").font(.caption).foregroundColor(.secondary)
                 Picker("Interval", selection: $settings.pollIntervalOverride) {
                     Text("Adaptive (recommended)").tag(0.0)
-                    Text("30 seconds").tag(30.0)
-                    Text("1 minute").tag(60.0)
                     Text("2 minutes").tag(120.0)
                     Text("5 minutes").tag(300.0)
                 }

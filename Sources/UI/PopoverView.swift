@@ -179,16 +179,10 @@ struct PopoverView: View {
 
     private var footer: some View {
         HStack {
-            if let age = state.cacheAgeText {
-                Text("Cached · \(age)")
+            if let status = state.statusLine {
+                Text(status.text)
                     .font(.caption2)
-                    .foregroundColor(.secondary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-            } else if let at = state.fetchedAt {
-                Text("Updated \(at, style: .time)")
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(status.isWarning ? .orange : .secondary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
             }

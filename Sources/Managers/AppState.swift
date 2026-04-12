@@ -182,6 +182,32 @@ final class AppState: ObservableObject {
         return "\(hrs)h ago"
     }
 
+    /// Footer status line. Prioritizes rate-limit wait over cache age / last-updated.
+    /// Returns (text, isWarning) — warning styling highlights rate limiting.
+    var statusLine: (text: String, isWarning: Bool)? {
+        if let until = rateLimitedUntil, until > Date() {
+            let remaining = Int(until.timeIntervalSinceNow)
+            let mins = remaining / 60
+            let secs = remaining % 60
+            let fmt: String
+            if mins >= 1 {
+                fmt = secs > 0 ? "\(mins)m \(secs)s" : "\(mins)m"
+            } else {
+                fmt = "\(secs)s"
+            }
+            return ("Rate limited · retrying in \(fmt)", true)
+        }
+        if let age = cacheAgeText {
+            return ("Cached · \(age)", false)
+        }
+        if let at = fetchedAt {
+            let f = DateFormatter()
+            f.timeStyle = .short
+            return ("Updated \(f.string(from: at))", false)
+        }
+        return nil
+    }
+
     // MARK: - Notifications
 
     private func checkNotifications(for response: UsageResponse) {

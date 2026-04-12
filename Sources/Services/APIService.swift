@@ -191,6 +191,9 @@ final class APIService {
         return dir.appendingPathComponent("ratelimit_log.txt")
     }()
 
+    private static let logMaxBytes: Int = 64 * 1024      // trim when file exceeds 64 KB
+    private static let logKeepLines: Int = 500           // keep last 500 lines after trim
+
     private static func logRateLimitToFile(statusCode: Int, headers: [String: String]) {
         let iso = ISO8601DateFormatter()
         iso.formatOptions = [.withInternetDateTime]
@@ -207,5 +210,20 @@ final class APIService {
         } else {
             try? line.data(using: .utf8)?.write(to: logFile)
         }
+
+        // Rotate if file has grown too large
+        if let attrs = try? FileManager.default.attributesOfItem(atPath: logFile.path),
+           let size = attrs[.size] as? Int,
+           size > logMaxBytes {
+            trimLogFile()
+        }
+    }
+
+    private static func trimLogFile() {
+        guard let contents = try? String(contentsOf: logFile, encoding: .utf8) else { return }
+        let lines = contents.split(separator: "\n", omittingEmptySubsequences: false)
+        guard lines.count > logKeepLines else { return }
+        let kept = lines.suffix(logKeepLines).joined(separator: "\n")
+        try? kept.data(using: .utf8)?.write(to: logFile)
     }
 }
