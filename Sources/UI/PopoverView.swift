@@ -25,8 +25,6 @@ struct PopoverView: View {
             if let err = state.error {
                 errorBanner(err)
             }
-            Divider()
-            footer
         }
         .padding(16)
         .frame(minWidth: 300, idealWidth: 340, maxWidth: 500)
@@ -48,6 +46,13 @@ struct PopoverView: View {
             .buttonStyle(.plain)
             .help("Open usage in browser")
             Spacer()
+            if let status = state.statusLine {
+                Text(status.text)
+                    .font(.caption2)
+                    .foregroundColor(status.isWarning ? .orange : .secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
             if state.isLoading {
                 SpinnerView(size: 12)
             }
@@ -175,26 +180,6 @@ struct PopoverView: View {
         .cornerRadius(6)
     }
 
-    // MARK: - Footer
-
-    private var footer: some View {
-        HStack {
-            if let status = state.statusLine {
-                Text(status.text)
-                    .font(.caption2)
-                    .foregroundColor(status.isWarning ? .orange : .secondary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-            }
-            Spacer()
-            Button("Quit") {
-                NSApp.terminate(nil)
-            }
-            .buttonStyle(.plain)
-            .font(.caption2)
-            .foregroundColor(.secondary)
-        }
-    }
 }
 
 // MARK: - UsageCard

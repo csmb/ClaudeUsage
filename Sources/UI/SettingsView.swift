@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 struct SettingsView: View {
 
@@ -24,6 +25,14 @@ struct SettingsView: View {
                     .disabled(!settings.notificationsEnabled)
                 Toggle("95% usage", isOn: $settings.notify95)
                     .disabled(!settings.notificationsEnabled)
+            }
+            Divider()
+            HStack {
+                Spacer()
+                Button("Quit Claude Usage") {
+                    NSApp.terminate(nil)
+                }
+                .keyboardShortcut("q", modifiers: .command)
             }
         }
         .padding(16)
