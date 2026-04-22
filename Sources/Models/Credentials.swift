@@ -1,8 +1,9 @@
 import Foundation
 
 struct OAuthCredentials {
-    let accessToken: String
-    let expiresAt: Date?
+    let accessToken:  String
+    let refreshToken: String?
+    let expiresAt:    Date?
 
     /// Returns true if the token is present and not expired (with 5-minute buffer).
     var isValid: Bool {
@@ -43,8 +44,9 @@ struct ClaudeOAuthPayload: Codable {
         // expiresAt is in milliseconds — divide by 1000 for Date
         let expiry = Date(timeIntervalSince1970: expiresAt / 1000)
         return OAuthCredentials(
-            accessToken: accessToken,
-            expiresAt:   expiry
+            accessToken:  accessToken,
+            refreshToken: refreshToken,
+            expiresAt:    expiry
         )
     }
 }

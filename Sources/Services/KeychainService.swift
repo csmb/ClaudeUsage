@@ -50,39 +50,53 @@ struct KeychainService {
     /// In-memory credential cache — avoids hitting the keychain on every poll cycle.
     private static var memoryCache: OAuthCredentials?
 
+    /// Serializes refresh attempts so polling + manual refresh can't race.
+    private static let refreshLock = NSLock()
+
     // MARK: - Public API
 
     /// Load and decode the Claude Code OAuth credentials, checking caches first.
     ///
     /// Resolution order:
     /// 1. In-memory cache (valid & unexpired)
-    /// 2. App's own keychain cache (valid & unexpired)
-    /// 3. Claude Code's keychain item (may trigger system password dialog)
+    /// 2. App's own keychain payload, if the access token is still valid
+    /// 3. App's own keychain payload + OAuth refresh (no user prompt)
+    /// 4. Claude Code's keychain item (may trigger system password dialog)
     ///
-    /// After a successful read from Claude Code's keychain, the credentials
-    /// are saved to the app's own keychain so future launches skip the dialog.
+    /// Steps 2–3 never prompt because our own keychain item is owned by this
+    /// app, and the refresh endpoint is a normal HTTPS call. Step 4 is only
+    /// reached on first launch or when the refresh token has been revoked.
     static func loadCredentials() throws -> OAuthCredentials {
         // 1. In-memory cache
         if let cached = memoryCache, cached.isValid {
             return cached
         }
 
-        // 2. App's own keychain cache
-        if let cached = loadFromOwnKeychain() {
-            memoryCache = cached
-            return cached
+        // 2 & 3. Own keychain (plus in-process refresh if the access token lapsed)
+        if let payload = loadPayloadFromOwnKeychain() {
+            let creds = payload.toCredentials()
+            if creds.isValid {
+                memoryCache = creds
+                return creds
+            }
+            if let refreshed = performRefresh(refreshToken: payload.refreshToken, previous: payload) {
+                memoryCache = refreshed
+                return refreshed
+            }
+            // Fall through: either no refresh token or the refresh endpoint
+            // rejected ours. performRefresh() has already wiped our cache
+            // in the rejection case, so reading Claude Code's keychain next
+            // is the correct recovery path.
         }
 
-        // 3. Claude Code's keychain (may prompt)
+        // 4. Claude Code's keychain (may prompt)
         let data = try readRawData(service: claudeCodeService)
         do {
             let wrapper = try JSONDecoder().decode(ClaudeKeychainWrapper.self, from: data)
-            let credentials = wrapper.claudeAiOauth.toCredentials()
-
-            // Cache so future launches don't prompt
+            let payload = wrapper.claudeAiOauth
             saveToOwnKeychain(data: data)
+            let credentials = payload.toCredentials()
             memoryCache = credentials
-
             return credentials
         } catch {
             throw KeychainError.decodingFailed(error)
@@ -90,16 +104,24 @@ struct KeychainService {
     }
 
     /// Clear all credential caches so the next `loadCredentials()` call
-    /// re-reads from Claude Code's keychain. Call this after a 401.
+    /// re-reads from Claude Code's keychain. Call this after a hard auth failure.
     static func invalidateCredentials() {
         memoryCache = nil
         deleteFromOwnKeychain()
     }
 
+    /// Drop only the in-memory copy. Used by the API layer on a 401 so the
+    /// next read can pick up a refreshed token from our own keychain without
+    /// discarding the refresh token we still need.
+    static func invalidateMemoryCache() {
+        memoryCache = nil
+    }
+
     // MARK: - Own keychain cache helpers
 
-    /// Read credentials from the app's own keychain item (never prompts).
-    private static func loadFromOwnKeychain() -> OAuthCredentials? {
+    /// Read the full payload (access + refresh token) from the app's own keychain.
+    /// Never prompts, because the app created this item.
+    private static func loadPayloadFromOwnKeychain() -> ClaudeOAuthPayload? {
         let query: [CFString: Any] = [
             kSecClass:       kSecClassGenericPassword,
             kSecAttrService: cachedService as CFString,
@@ -112,9 +134,7 @@ struct KeychainService {
               let data = result as? Data,
               let wrapper = try? JSONDecoder().decode(ClaudeKeychainWrapper.self, from: data)
         else { return nil }
-
-        let credentials = wrapper.claudeAiOauth.toCredentials()
-        return credentials.isValid ? credentials : nil
+        return wrapper.claudeAiOauth
     }
 
     /// Save raw credential JSON to the app's own keychain item.
@@ -132,6 +152,72 @@ struct KeychainService {
             addQuery[kSecValueData] = data
             SecItemAdd(addQuery as CFDictionary, nil)
         }
+    }
+
+    /// Re-encode a payload and store it in the app's own keychain.
+    private static func savePayloadToOwnKeychain(_ payload: ClaudeOAuthPayload) {
+        let wrapper = ClaudeKeychainWrapper(claudeAiOauth: payload)
+        guard let data = try? JSONEncoder().encode(wrapper) else { return }
+        saveToOwnKeychain(data: data)
+    }
+
+    // MARK: - OAuth refresh
+
+    /// Calls the OAuth refresh endpoint (bridged sync-from-async). Returns the
+    /// refreshed credentials, or nil on a transient failure (network down,
+    /// 5xx, decoding glitch) so the caller can continue on with what we have.
+    ///
+    /// On a hard `refreshTokenRejected` (401/403) this method wipes our own
+    /// cache so the fallback to Claude Code's keychain gets a clean read.
+    private static func performRefresh(
+        refreshToken: String,
+        previous: ClaudeOAuthPayload
+    ) -> OAuthCredentials? {
+        refreshLock.lock()
+        defer { refreshLock.unlock() }
+
+        // Another thread may have refreshed while we were waiting on the lock.
+        if let payload = loadPayloadFromOwnKeychain() {
+            let creds = payload.toCredentials()
+            if creds.isValid { return creds }
+        }
+
+        let semaphore = DispatchSemaphore(value: 0)
+        var response: OAuthRefreshService.TokenResponse?
+        var refreshError: Error?
+
+        Task.detached {
+            do { response = try await OAuthRefreshService().refresh(refreshToken: refreshToken) }
+            catch { refreshError = error }
+            semaphore.signal()
+        }
+        _ = semaphore.wait(timeout: .now() + 20)
+
+        if let err = refreshError {
+            if case OAuthRefreshError.refreshTokenRejected = err {
+                print("[KeychainService] refresh token rejected; clearing own cache")
+                memoryCache = nil
+                deleteFromOwnKeychain()
+            } else {
+                print("[KeychainService] refresh transient failure: \(err.localizedDescription)")
+            }
+            return nil
+        }
+        guard let resp = response else {
+            print("[KeychainService] refresh timed out")
+            return nil
+        }
+
+        let newExpiryMs = Date().addingTimeInterval(resp.expiresIn ?? 3600).timeIntervalSince1970 * 1000
+        let newPayload = ClaudeOAuthPayload(
+            accessToken:      resp.accessToken,
+            refreshToken:     resp.refreshToken ?? previous.refreshToken,
+            expiresAt:        newExpiryMs,
+            subscriptionType: previous.subscriptionType
+        )
+        savePayloadToOwnKeychain(newPayload)
+        print("[KeychainService] refreshed access token via OAuth")
+        return newPayload.toCredentials()
     }
 
     /// Remove the app's cached credentials from the keychain.

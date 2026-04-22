@@ -92,3 +92,17 @@ struct CacheAgeTextTests {
         #expect(state.cacheAgeText == "2h ago")
     }
 }
+
+// MARK: - Credentials decoding
+
+struct CredentialsDecodeTests {
+    @Test func decode_preservesRefreshToken() throws {
+        let json = """
+        {"claudeAiOauth":{"accessToken":"acc","refreshToken":"ref","expiresAt":1700000000000,"subscriptionType":"pro"}}
+        """.data(using: .utf8)!
+        let wrapper = try JSONDecoder().decode(ClaudeKeychainWrapper.self, from: json)
+        let creds = wrapper.claudeAiOauth.toCredentials()
+        #expect(creds.accessToken  == "acc")
+        #expect(creds.refreshToken == "ref")
+    }
+}

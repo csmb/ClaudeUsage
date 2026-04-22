@@ -98,6 +98,10 @@ final class APIService {
 
     /// Fetch current usage from api.anthropic.com/v1/usage.
     func fetchUsage() async throws -> UsageFetchResult {
+        try await fetchUsageOnce(isRetry: false)
+    }
+
+    private func fetchUsageOnce(isRetry: Bool) async throws -> UsageFetchResult {
         let credentials: OAuthCredentials
         do {
             credentials = try KeychainService.loadCredentials()
@@ -149,6 +153,15 @@ final class APIService {
         switch http.statusCode {
         case 200...299: break
         case 401:
+            // Drop the in-memory copy and try exactly one refresh+retry.
+            // loadCredentials() will pick up a refreshed token from our own
+            // keychain (or trigger an OAuth refresh). Only if the retry also
+            // 401s do we wipe the cache and surface the error — at that point
+            // the refresh token itself is bad and we need the user to re-auth.
+            KeychainService.invalidateMemoryCache()
+            if !isRetry {
+                return try await fetchUsageOnce(isRetry: true)
+            }
             KeychainService.invalidateCredentials()
             throw APIError.invalidCredentials
         case 429:
