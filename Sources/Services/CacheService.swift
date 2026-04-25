@@ -14,8 +14,6 @@ final class CacheService {
     // MARK: - Init
 
     init() {
-        let iso = ISO8601DateFormatter()
-        iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         encoder.dateEncodingStrategy = .iso8601
         decoder.dateDecodingStrategy = .custom { dec in
             let str = try dec.singleValueContainer().decode(String.self)
@@ -46,10 +44,6 @@ final class CacheService {
             !snapshot.isStale
         else { return nil }
         return snapshot
-    }
-
-    func clear() {
-        try? FileManager.default.removeItem(at: cacheURL)
     }
 
     // MARK: - Private

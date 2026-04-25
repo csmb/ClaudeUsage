@@ -40,7 +40,7 @@ Scripts/
 ## Key Design Decisions
 
 - **No shell-outs for keychain access.** Uses native `SecItemCopyMatching` so macOS shows a proper consent dialog. Never uses `Process()`, `NSTask`, or `/usr/bin/security`.
-- **Adaptive polling.** Poll interval adjusts based on utilization level: low=5m, medium=2m, high=1m, critical=30s. Configurable override in settings.
+- **Adaptive polling.** Poll interval adjusts based on utilization level: low=5m, medium=5m, high=3m, critical=2m. Configurable override in settings.
 - **Credential watcher.** Monitors `~/.config/claude/` for file changes to detect token refreshes without aggressive polling.
 - **Color-coded per window.** Each usage window (5h, 7d) is colored independently by its own utilization level, both in the menu bar and in the popover cards.
 - **Dark/light mode aware.** All accent colors have explicit dark and light variants.

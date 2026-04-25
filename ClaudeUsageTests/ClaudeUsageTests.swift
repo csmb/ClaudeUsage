@@ -19,9 +19,9 @@ struct UtilizationLevelTests {
 
     @Test func pollIntervals() {
         #expect(UtilizationLevel.low.pollInterval      == 300)
-        #expect(UtilizationLevel.medium.pollInterval   == 120)
-        #expect(UtilizationLevel.high.pollInterval     == 60)
-        #expect(UtilizationLevel.critical.pollInterval == 30)
+        #expect(UtilizationLevel.medium.pollInterval   == 300)
+        #expect(UtilizationLevel.high.pollInterval     == 180)
+        #expect(UtilizationLevel.critical.pollInterval == 120)
     }
 }
 

@@ -2,7 +2,6 @@ import AppKit
 
 /// Handles app lifecycle events that SwiftUI's @main doesn't cover:
 /// - Sleep / wake (pause/resume polling)
-/// - Network reachability changes (future)
 final class AppDelegate: NSObject, NSApplicationDelegate {
 
     var appState              = AppState()   // eager init — must exist before SwiftUI reads body

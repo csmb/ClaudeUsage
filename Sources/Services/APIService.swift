@@ -5,7 +5,7 @@ import Foundation
 /// SECURITY NOTE
 /// ─────────────
 /// - Single hardcoded base URL: https://api.anthropic.com
-/// - Single endpoint: /v1/usage
+/// - Single endpoint: /api/oauth/usage
 /// - No redirects followed (redirectionPolicy = .none)
 /// - Cookies disabled
 /// - No background sessions (no silent network activity)
@@ -82,13 +82,12 @@ final class APIService {
 
     // MARK: - URLSession
 
-    /// Dedicated session — no cookies, no caching, no cellular surprises.
+    /// Dedicated session — no cookies, no caching, fail fast on bad network.
     private let session: URLSession = {
         let config = URLSessionConfiguration.ephemeral
         config.httpCookieAcceptPolicy    = .never
         config.httpShouldSetCookies      = false
         config.requestCachePolicy        = .reloadIgnoringLocalCacheData
-        config.allowsCellularAccess      = true   // explicit, not default
         config.waitsForConnectivity      = false  // fail fast rather than stall
         config.timeoutIntervalForRequest = 15
         return URLSession(configuration: config)
@@ -96,7 +95,7 @@ final class APIService {
 
     // MARK: - Public API
 
-    /// Fetch current usage from api.anthropic.com/v1/usage.
+    /// Fetch current usage from api.anthropic.com/api/oauth/usage.
     func fetchUsage() async throws -> UsageFetchResult {
         try await fetchUsageOnce(isRetry: false)
     }

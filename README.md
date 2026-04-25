@@ -8,7 +8,7 @@ A macOS menu bar app that shows your Claude Code usage across rate-limit windows
 - **Color coding** — green → yellow → orange → red as utilization climbs
 - **Usage cards** — 5-hour window, 7-day window, Opus (when applicable)
 - **Countdown timers** — live reset countdown
-- **Adaptive polling** — 30s at critical usage, 5 min at low
+- **Adaptive polling** — 2 min at critical usage, 5 min at low
 - **Offline cache** — shows last-known data with age indicator on open
 - **Notifications** — alerts at 75%, 90%, 95% thresholds
 
@@ -28,8 +28,8 @@ A macOS menu bar app that shows your Claude Code usage across rate-limit windows
 xcodebuild -project ClaudeUsage.xcodeproj -scheme ClaudeUsage -configuration Debug build
 
 # Install (replace with your DerivedData path)
-rm -rf /Applications/ClaudeUsage.app
-cp -R ~/Library/Developer/Xcode/DerivedData/ClaudeUsage-*/Build/Products/Debug/ClaudeUsage.app /Applications/
+rm -rf "/Applications/Claude Usage.app"
+cp -R ~/Library/Developer/Xcode/DerivedData/ClaudeUsage-*/Build/Products/Debug/"Claude Usage.app" /Applications/
 ```
 
 Or open in Xcode and press `⌘R`.
