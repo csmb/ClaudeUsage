@@ -53,13 +53,12 @@ struct PopoverView: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
             }
-            if state.isLoading {
-                SpinnerView(size: 12)
-            }
             Button {
                 Task { await state.refresh() }
             } label: {
-                if state.canRefresh {
+                if state.isLoading {
+                    SpinnerView(size: 12)
+                } else if state.canRefresh {
                     Image(systemName: "arrow.clockwise")
                         .imageScale(.small)
                 } else {
@@ -69,7 +68,7 @@ struct PopoverView: View {
                 }
             }
             .buttonStyle(.plain)
-            .disabled(!state.canRefresh)
+            .disabled(state.isLoading || !state.canRefresh)
             .help(state.canRefresh ? "Refresh now" : "Wait \(state.cooldownRemaining)s before refreshing")
 
             Button {
