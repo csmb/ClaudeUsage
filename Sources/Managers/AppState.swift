@@ -57,6 +57,16 @@ final class AppState: ObservableObject {
             Task { await self?.refresh() }
         }
 
+        // Screenshot runs render synthetic data and never touch disk, keychain
+        // or network. See DemoMode.
+        if let demo = DemoMode.current {
+            let snapshot  = DemoData.snapshot(for: demo.scenario)
+            usageResponse = snapshot.response
+            usageHistory  = snapshot.history
+            fetchedAt     = Date()
+            return
+        }
+
         // Warm up from cache immediately so the popover isn't blank on launch
         if let cached = cache.load() {
             self.usageResponse = cached.response
@@ -69,6 +79,7 @@ final class AppState: ObservableObject {
     // MARK: - Refresh
 
     func refresh() async {
+        guard !DemoMode.isActive else { return }
         guard !isLoading, canRefresh else { return }
         isLoading = true
         defer { isLoading = false }

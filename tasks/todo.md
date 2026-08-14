@@ -505,3 +505,32 @@ make install
 **Lessons to capture later (for `tasks/lessons.md`, if wanted):**
 - macOS keychain ACL entries reference the item, not the accessor. When the item owner (Claude Code CLI) recreates the item on OAuth refresh, every other app's "Always Allow" grant is lost. Long-term fix for consuming apps: cache the refresh token yourself.
 - Always check the pre-existing test target configuration (`TEST_HOST`, `PRODUCT_MODULE_NAME` vs. `PRODUCT_NAME` with spaces) before assuming TDD is available.
+
+---
+
+# Screenshot harness (`--demo`)
+
+**Goal:** Produce publishable screenshots of the app for a personal site, in light and dark, without ever showing real account data.
+
+**Constraint discovered up front:** `screencapture` from iTerm fails (`could not create image from display`) — iTerm lacks Screen Recording permission, and granting it requires quitting iTerm, which would kill the session. Workaround: the app captures itself. A process can always capture its *own* windows, and a fresh build triggers its own one-click permission prompt for the full-screen (menu bar) crop.
+
+- [x] **1** `Sources/Support/DemoMode.swift` — launch-arg parsing, neutral backdrop window, run sequencing
+- [x] **2** `Sources/Support/DemoData.swift` — deterministic synthetic response + 7 days of history
+- [x] **3** `Sources/Support/DemoCapture.swift` — CGWindowList capture + PNG writing
+- [x] **4** Guarded hooks in `AppState`, `AppDelegate`, `StatusItemController`
+- [x] **5** `Scripts/screenshots.sh` — 3 scenarios x 2 appearances, flips system appearance, restores state
+- [x] **6** Verify: build, run, *look at every image*
+- [x] **7** Commit demo code + `screenshots/`
+
+## Review
+
+**Shipped:** `Sources/Support/{DemoMode,DemoData,DemoCapture}.swift`, `Scripts/screenshots.sh`, and 24 images in `screenshots/` (3 scenarios x 2 appearances x 4 crops, all 2x Retina). Four guarded hooks: `AppState.init` (synthetic data), `AppState.refresh` (early return), `AppDelegate` (demo launch path), `StatusItemController` (pinned popover, forced appearance), `PopoverView.onAppear` (opens Settings). `Sources/` is not a synchronized group, so the three new files were added to `project.pbxproj` by hand.
+
+**Four macOS behaviours this ran into, all worth remembering:**
+
+1. `CGWindowListCreateImage` is *unavailable*, not merely deprecated, in the macOS 26 SDK. ScreenCaptureKit (`SCScreenshotManager.captureImage`) is the only path, and it makes capture async.
+2. `NSApp.appearance` is ignored in a SwiftUI app — SwiftUI resets it to the system appearance. Force appearance per-window (`popover.appearance`, `window.appearance`) instead.
+3. **A window-only capture omits the behind-window blur.** An `SCContentFilter(desktopIndependentWindow:)` capture of the popover renders its translucent shell with a fallback dark tint, which looks fine in dark mode and badly wrong in light mode. The popover is therefore cropped out of a screen capture; only the opaque Settings window is captured as a window.
+4. The menu bar tints from the **desktop wallpaper**, not the system appearance. On a dark wallpaper the menu bar keeps white glyphs even in Light mode, so shots containing the menu bar get a dark surround (`--backdrop`) while the popover shot gets one matching the app appearance. The backdrop is rebuilt rather than repainted between the two — marking the content view dirty leaves the composited buffer stale.
+
+**Not fixed (pre-existing, and visible in the `healthy` screenshots):** `UsageChartView.usageGradient` is applied across each mark's bounding box rather than the 0-100 y-scale, so an 18% line is still drawn green->orange->red. The endpoint dot uses `colorForPct` on the absolute value and comes out green, so the line and its own dot disagree. Fix would be to anchor the gradient to the y-scale (`.chartPlotStyle` / a plot-space gradient) rather than the mark bounds.

@@ -29,6 +29,11 @@ struct PopoverView: View {
         .padding(16)
         .frame(minWidth: 300, idealWidth: 340, maxWidth: 500)
         .onReceive(timer) { t in now = t }
+        .onAppear {
+            // Screenshot runs open Settings through the same path as the gear
+            // button, which is the only one SwiftUI reliably answers.
+            if DemoMode.current?.includeSettings == true { openSettings() }
+        }
     }
 
     // MARK: - Header

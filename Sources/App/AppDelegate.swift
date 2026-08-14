@@ -7,10 +7,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var appState              = AppState()   // eager init — must exist before SwiftUI reads body
     var statusItemController:  StatusItemController!
     var credentialWatcher:     CredentialWatcher!
+    var demoSession:           DemoSession?
 
     // MARK: - Launch
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+
+        // Screenshot run: synthetic data, no polling, no credential watcher.
+        if let config = DemoMode.current {
+            if let name = config.appearance { NSApp.appearance = NSAppearance(named: name) }
+            statusItemController = StatusItemController(appState: appState)
+            demoSession = DemoSession(config: config, controller: statusItemController)
+            demoSession?.start()
+            return
+        }
 
         // Wire up the menu bar icon + popover
         statusItemController = StatusItemController(appState: appState)
@@ -56,6 +66,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         appState.polling.stop()
-        credentialWatcher.stop()
+        credentialWatcher?.stop()   // nil during --demo runs
     }
 }

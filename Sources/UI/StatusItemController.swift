@@ -14,6 +14,10 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
     private var cancellables: Set<AnyCancellable> = []
     private var eventMonitor: Any?
 
+    /// Windows the screenshot harness needs to locate. Nil until shown.
+    var statusWindow: NSWindow? { statusItem.button?.window }
+    private(set) var popoverWindow: NSWindow?
+
     // MARK: - Init
 
     init(appState: AppState) {
@@ -44,8 +48,15 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
     // MARK: - Popover
 
     private func configurePopover(appState: AppState) {
-        popover.behavior = .transient
-        popover.animates = true
+        // Screenshot runs keep the popover pinned open and skip the animation,
+        // so the capture lands on a settled frame.
+        popover.behavior = DemoMode.isActive ? .applicationDefined : .transient
+        popover.animates = !DemoMode.isActive
+        // Forced per-popover rather than via NSApp.appearance, which SwiftUI
+        // overrides back to the system appearance.
+        if let name = DemoMode.current?.appearance {
+            popover.appearance = NSAppearance(named: name)
+        }
         popover.delegate = self
         let hc = NSHostingController(
             rootView: PopoverView()
@@ -77,6 +88,13 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
         ) { [weak self] _ in
             self?.closePopover()
         }
+    }
+
+    /// Opens the popover without the click-outside monitor, for `--demo` runs.
+    func showPopoverForDemo() {
+        guard let button = statusItem.button else { return }
+        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        popoverWindow = popover.contentViewController?.view.window
     }
 
     private func closePopover() {

@@ -17,6 +17,9 @@
 		0F6E81CB2F5953FD006C22F7 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F6E81B72F5953FD006C22F7 /* AppSettings.swift */; };
 		0F6E81CC2F5953FD006C22F7 /* APIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F6E81BB2F5953FD006C22F7 /* APIService.swift */; };
 		0F6E82A12F5953FD006C22F7 /* OAuthRefreshService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F6E82A02F5953FD006C22F7 /* OAuthRefreshService.swift */; };
+		0F6E82B42F5953FD006C22F7 /* DemoMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F6E82B12F5953FD006C22F7 /* DemoMode.swift */; };
+		0F6E82B52F5953FD006C22F7 /* DemoData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F6E82B22F5953FD006C22F7 /* DemoData.swift */; };
+		0F6E82B62F5953FD006C22F7 /* DemoCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F6E82B32F5953FD006C22F7 /* DemoCapture.swift */; };
 		0F6E81CD2F5953FD006C22F7 /* ClaudeUsageApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F6E81B22F5953FD006C22F7 /* ClaudeUsageApp.swift */; };
 		0F6E81CE2F5953FD006C22F7 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F6E81C02F5953FD006C22F7 /* SettingsView.swift */; };
 		0F6E81CF2F5953FD006C22F7 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F6E81B12F5953FD006C22F7 /* AppDelegate.swift */; };
@@ -61,6 +64,9 @@
 		0F6E81C12F5953FD006C22F7 /* StatusItemController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusItemController.swift; sourceTree = "<group>"; };
 		0F6E81D12F5955F2006C22F7 /* ClaudeUsage.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ClaudeUsage.entitlements; sourceTree = "<group>"; };
 		0F6E81D22F5953FD006C22F7 /* HistoryService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryService.swift; sourceTree = "<group>"; };
+		0F6E82B12F5953FD006C22F7 /* DemoMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoMode.swift; sourceTree = "<group>"; };
+		0F6E82B22F5953FD006C22F7 /* DemoData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoData.swift; sourceTree = "<group>"; };
+		0F6E82B32F5953FD006C22F7 /* DemoCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoCapture.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -178,6 +184,16 @@
 			path = UI;
 			sourceTree = "<group>";
 		};
+		0F6E82B02F5953FD006C22F7 /* Support */ = {
+			isa = PBXGroup;
+			children = (
+				0F6E82B12F5953FD006C22F7 /* DemoMode.swift */,
+				0F6E82B22F5953FD006C22F7 /* DemoData.swift */,
+				0F6E82B32F5953FD006C22F7 /* DemoCapture.swift */,
+			);
+			path = Support;
+			sourceTree = "<group>";
+		};
 		0F6E81C32F5953FD006C22F7 /* Sources */ = {
 			isa = PBXGroup;
 			children = (
@@ -185,6 +201,7 @@
 				0F6E81B62F5953FD006C22F7 /* Managers */,
 				0F6E81BA2F5953FD006C22F7 /* Models */,
 				0F6E81BE2F5953FD006C22F7 /* Services */,
+				0F6E82B02F5953FD006C22F7 /* Support */,
 				0F6E81C22F5953FD006C22F7 /* UI */,
 			);
 			path = Sources;
@@ -349,6 +366,9 @@
 				0F6E81CF2F5953FD006C22F7 /* AppDelegate.swift in Sources */,
 				0F6E81D02F5953FD006C22F7 /* PollingManager.swift in Sources */,
 				0F6E81D32F5953FD006C22F7 /* HistoryService.swift in Sources */,
+				0F6E82B42F5953FD006C22F7 /* DemoMode.swift in Sources */,
+				0F6E82B52F5953FD006C22F7 /* DemoData.swift in Sources */,
+				0F6E82B62F5953FD006C22F7 /* DemoCapture.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
