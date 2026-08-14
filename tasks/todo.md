@@ -534,3 +534,12 @@ make install
 4. The menu bar tints from the **desktop wallpaper**, not the system appearance. On a dark wallpaper the menu bar keeps white glyphs even in Light mode, so shots containing the menu bar get a dark surround (`--backdrop`) while the popover shot gets one matching the app appearance. The backdrop is rebuilt rather than repainted between the two — marking the content view dirty leaves the composited buffer stale.
 
 **Not fixed (pre-existing, and visible in the `healthy` screenshots):** `UsageChartView.usageGradient` is applied across each mark's bounding box rather than the 0-100 y-scale, so an 18% line is still drawn green->orange->red. The endpoint dot uses `colorForPct` on the absolute value and comes out green, so the line and its own dot disagree. Fix would be to anchor the gradient to the y-scale (`.chartPlotStyle` / a plot-space gradient) rather than the mark bounds.
+
+**Revision — quota windows only accumulate.** The first data model treated the
+7-day and Opus windows as rolling averages that could dip. They aren't: usage
+inside a quota window only ever climbs, and drops to zero only at the reset.
+All three windows now share one `accumulated()` shape, differing only in length
+and reset time, so each chart shows the previous window's tail, the reset, then
+the climb. The burst function also became an uneven staircase — the old
+harmonic version had amplitude proportional to 1/k, so asking for *more* bursts
+made the curve look *smoother*, the opposite of the intent.

@@ -25,6 +25,9 @@ enum DemoData {
         let opus:     Double
         let fiveHourResetsIn: TimeInterval
         let sevenDayResetsIn: TimeInterval
+        /// Bursts of activity per window. A heavy day is choppier: more
+        /// sessions, each taking a bigger bite.
+        let bursts: Double
     }
 
     private static func recipe(for scenario: DemoMode.Scenario) -> Recipe {
@@ -32,15 +35,18 @@ enum DemoData {
         case .healthy:
             return Recipe(fiveHour: 18, sevenDay: 24, opus: 31,
                           fiveHourResetsIn: 4 * 3600 + 2 * 60,
-                          sevenDayResetsIn: 5 * 86400 + 11 * 3600)
+                          sevenDayResetsIn: 5 * 86400 + 11 * 3600,
+                          bursts: 3)
         case .mixed:
             return Recipe(fiveHour: 62, sevenDay: 38, opus: 81,
                           fiveHourResetsIn: 2 * 3600 + 14 * 60,
-                          sevenDayResetsIn: 4 * 86400 + 6 * 3600)
+                          sevenDayResetsIn: 4 * 86400 + 6 * 3600,
+                          bursts: 5)
         case .heavy:
             return Recipe(fiveHour: 94, sevenDay: 88, opus: 97,
                           fiveHourResetsIn: 41 * 60,
-                          sevenDayResetsIn: 86400 + 3 * 3600)
+                          sevenDayResetsIn: 86400 + 3 * 3600,
+                          bursts: 9)
         }
     }
 
@@ -60,9 +66,10 @@ enum DemoData {
         return Snapshot(
             response: response,
             history:  history(
-                recipe:      r,
-                now:         now,
-                windowStart: fiveHourResets.addingTimeInterval(-fiveHourWindow)
+                recipe:         r,
+                now:            now,
+                fiveHourResets: fiveHourResets,
+                sevenDayResets: sevenDayResets
             )
         )
     }
@@ -72,7 +79,12 @@ enum DemoData {
     /// Sampled densely over the last five hours (the 5h and Last Hour charts
     /// need smooth lines) and coarsely before that (the 7d chart only needs
     /// shape).
-    private static func history(recipe r: Recipe, now: Date, windowStart: Date) -> [UsageDataPoint] {
+    private static func history(
+        recipe r: Recipe,
+        now: Date,
+        fiveHourResets: Date,
+        sevenDayResets: Date
+    ) -> [UsageDataPoint] {
         var timestamps: [Date] = []
 
         var t = now.addingTimeInterval(-sevenDayWindow)
@@ -90,56 +102,89 @@ enum DemoData {
 
         return timestamps.map { ts in
             UsageDataPoint(
-                id:              UUID(),
-                timestamp:       ts,
-                fiveHourPct:     rollingFiveHour(at: ts, now: now, windowStart: windowStart, target: r.fiveHour),
-                sevenDayPct:     rollingSevenDay(at: ts, now: now, target: r.sevenDay, dips: 7),
-                sevenDayOpusPct: rollingSevenDay(at: ts, now: now, target: r.opus,     dips: 5)
+                id:        UUID(),
+                timestamp: ts,
+                fiveHourPct: accumulated(
+                    at: ts, now: now,
+                    resetsAt: fiveHourResets, length: fiveHourWindow,
+                    target: r.fiveHour, bursts: r.bursts,
+                    earlierPeaks: [0.86, 0.52, 0.97, 0.41, 0.73, 0.63]
+                ),
+                sevenDayPct: accumulated(
+                    at: ts, now: now,
+                    resetsAt: sevenDayResets, length: sevenDayWindow,
+                    target: r.sevenDay, bursts: r.bursts,
+                    earlierPeaks: [0.78, 0.61]
+                ),
+                // Fewer, larger bites than the overall quota, so the Opus chart
+                // doesn't trace the same line as the 7-day one.
+                sevenDayOpusPct: accumulated(
+                    at: ts, now: now,
+                    resetsAt: sevenDayResets, length: sevenDayWindow,
+                    target: r.opus, bursts: max(2, r.bursts - 3),
+                    earlierPeaks: [0.66, 0.83]
+                )
             )
         }
     }
 
-    /// A rolling seven-day window: trends upward across the week and dips
-    /// through quiet stretches as older usage ages out.
-    ///
-    /// `dips` is an integer so every dip term is zero at p = 1 — which makes
-    /// the curve land exactly on `target` at `now`, matching the headline
-    /// number and the endpoint dot on the chart.
-    private static func rollingSevenDay(at t: Date, now: Date, target: Double, dips: Double) -> Double {
-        let p = 1 - clamp(now.timeIntervalSince(t) / sevenDayWindow)   // 0 = a week ago, 1 = now
-        let trend = 0.35 + 0.65 * p
-        let quiet = 0.09 * abs(sin(.pi * dips * p))
-              + 0.045 * abs(sin(.pi * 2 * p))
-        return target * (trend - quiet)
-    }
+    /// Usage within a quota window only ever accumulates — it never falls back
+    /// — and drops to zero when the window resets. All three windows share this
+    /// shape; only their length and reset time differ.
+    private static func accumulated(
+        at t: Date,
+        now: Date,
+        resetsAt: Date,
+        length: TimeInterval,
+        target: Double,
+        bursts: Double,
+        earlierPeaks: [Double]
+    ) -> Double {
+        let windowStart = resetsAt.addingTimeInterval(-length)
 
-    /// A five-hour window: climbs in bursts, drops to zero on reset. Earlier
-    /// windows keep their own peaks so the chart shows a real sawtooth rather
-    /// than one lonely ramp.
-    private static func rollingFiveHour(at t: Date, now: Date, windowStart: Date, target: Double) -> Double {
         if t >= windowStart {
-            let elapsedNow = now.timeIntervalSince(windowStart)
-            guard elapsedNow > 0 else { return target }
-            return target * burst(clamp(t.timeIntervalSince(windowStart) / elapsedNow))
+            // Normalised against elapsed-so-far rather than the full window, so
+            // the curve lands exactly on `target` at `now` — matching the
+            // headline number and the endpoint dot on the chart.
+            let elapsed = now.timeIntervalSince(windowStart)
+            guard elapsed > 0 else { return target }
+            return target * burst(clamp(t.timeIntervalSince(windowStart) / elapsed), count: bursts)
         }
-        let index = Int(floor(windowStart.timeIntervalSince(t) / fiveHourWindow))
-        let start = windowStart.addingTimeInterval(-Double(index + 1) * fiveHourWindow)
-        let progress = clamp(t.timeIntervalSince(start) / fiveHourWindow)
-        return previousPeak(index: index, target: target) * burst(progress)
+
+        // Earlier windows: the same climb, to their own peak, before the reset.
+        let index = Int(floor(windowStart.timeIntervalSince(t) / length))
+        let start = windowStart.addingTimeInterval(-Double(index + 1) * length)
+        let peak  = min(98, target * earlierPeaks[index % earlierPeaks.count] * 1.15)
+        return peak * burst(clamp(t.timeIntervalSince(start) / length), count: bursts)
     }
 
-    /// Maps 0 → 0 and 1 → 1, monotonically, in four bursts-and-plateaus.
-    /// The derivative is `1 + 0.7·cos(…)`, which never reaches zero, so usage
-    /// never appears to run backwards inside a window.
-    private static func burst(_ s: Double) -> Double {
-        let k = 5.0
-        return s + 0.85 * sin(2 * .pi * k * s) / (2 * .pi * k)
+    /// Relative size of each burst, cycled. Deliberately lopsided: evenly
+    /// sized steps read as a synthetic ramp, whereas a long session next to a
+    /// couple of small ones reads as somebody actually working.
+    private static let burstWeights: [Double] = [
+        1.0, 0.35, 1.6, 0.2, 0.9, 1.35, 0.5, 1.8, 0.7, 1.15, 0.3, 1.45
+    ]
+
+    /// Maps 0 → 0 and 1 → 1 monotonically, as `count` bursts of work separated
+    /// by plateaus where nothing is being spent.
+    ///
+    /// Each burst climbs over the first 55% of its slot and then holds. Sized
+    /// from `burstWeights`, so the steps are uneven; normalising by their total
+    /// keeps the curve landing exactly on 1 at s = 1.
+    private static func burst(_ s: Double, count: Double) -> Double {
+        let n = max(1, Int(count))
+        let weights = (0..<n).map { burstWeights[$0 % burstWeights.count] }
+        let total = weights.reduce(0, +)
+
+        let slot  = min(Int(clamp(s) * Double(n)), n - 1)
+        let local = clamp(s) * Double(n) - Double(slot)
+        let ramp  = smoothstep(min(local / 0.55, 1))
+
+        let spent = weights[0..<slot].reduce(0, +) + weights[slot] * ramp
+        return spent / total
     }
 
-    private static func previousPeak(index: Int, target: Double) -> Double {
-        let factors = [0.86, 0.52, 0.97, 0.41, 0.73, 0.63]
-        return min(98, target * factors[index % factors.count] * 1.15)
-    }
+    private static func smoothstep(_ x: Double) -> Double { x * x * (3 - 2 * x) }
 
     private static func clamp(_ v: Double) -> Double { min(max(v, 0), 1) }
 }

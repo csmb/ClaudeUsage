@@ -19,8 +19,22 @@ OUT="$REPO/screenshots"
 SCENARIOS=(healthy mixed heavy)
 MODES=(dark light)
 
-# Optionally narrow to some modes: ./Scripts/screenshots.sh light
-[[ $# -gt 0 ]] && MODES=("$@")
+# Narrow by naming modes and/or scenarios, in any order and any combination:
+#   ./Scripts/screenshots.sh                 everything
+#   ./Scripts/screenshots.sh light           the light pass only
+#   ./Scripts/screenshots.sh heavy           one scenario, both appearances
+#   ./Scripts/screenshots.sh heavy dark      one image set
+pick_modes=()
+pick_scenarios=()
+for arg in "$@"; do
+  case "$arg" in
+    dark|light)          pick_modes+=("$arg") ;;
+    healthy|mixed|heavy) pick_scenarios+=("$arg") ;;
+    *) echo "Unknown argument: $arg (want dark|light|healthy|mixed|heavy)" >&2; exit 2 ;;
+  esac
+done
+[[ ${#pick_modes[@]}     -gt 0 ]] && MODES=("${pick_modes[@]}")
+[[ ${#pick_scenarios[@]} -gt 0 ]] && SCENARIOS=("${pick_scenarios[@]}")
 
 # Note on light mode: macOS tints the menu bar from the desktop *wallpaper*,
 # not from the system appearance. With a dark wallpaper the menu bar keeps its
