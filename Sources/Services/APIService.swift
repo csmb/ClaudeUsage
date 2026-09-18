@@ -152,16 +152,15 @@ final class APIService {
         switch http.statusCode {
         case 200...299: break
         case 401:
-            // Drop the in-memory copy and try exactly one refresh+retry.
-            // loadCredentials() will pick up a refreshed token from our own
-            // keychain (or trigger an OAuth refresh). Only if the retry also
-            // 401s do we wipe the cache and surface the error — at that point
-            // the refresh token itself is bad and we need the user to re-auth.
+            // Drop the in-memory copy and retry exactly once. The retry
+            // re-reads Claude Code's keychain item, which the CLI (and its
+            // daemon) keep refreshed — so if the token simply rotated, the
+            // retry succeeds. If the retry also 401s, the token in the keychain
+            // is genuinely bad and the user needs to log in to Claude Code again.
             KeychainService.invalidateMemoryCache()
             if !isRetry {
                 return try await fetchUsageOnce(isRetry: true)
             }
-            KeychainService.invalidateCredentials()
             throw APIError.invalidCredentials
         case 429:
             print("[APIService] 429 — all headers: \(headers)")

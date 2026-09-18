@@ -16,7 +16,6 @@
 		0F6E81CA2F5953FD006C22F7 /* Credentials.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F6E81B82F5953FD006C22F7 /* Credentials.swift */; };
 		0F6E81CB2F5953FD006C22F7 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F6E81B72F5953FD006C22F7 /* AppSettings.swift */; };
 		0F6E81CC2F5953FD006C22F7 /* APIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F6E81BB2F5953FD006C22F7 /* APIService.swift */; };
-		0F6E82A12F5953FD006C22F7 /* OAuthRefreshService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F6E82A02F5953FD006C22F7 /* OAuthRefreshService.swift */; };
 		0F6E82B42F5953FD006C22F7 /* DemoMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F6E82B12F5953FD006C22F7 /* DemoMode.swift */; };
 		0F6E82B52F5953FD006C22F7 /* DemoData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F6E82B22F5953FD006C22F7 /* DemoData.swift */; };
 		0F6E82B62F5953FD006C22F7 /* DemoCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F6E82B32F5953FD006C22F7 /* DemoCapture.swift */; };
@@ -58,7 +57,6 @@
 		0F6E81BB2F5953FD006C22F7 /* APIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIService.swift; sourceTree = "<group>"; };
 		0F6E81BC2F5953FD006C22F7 /* CacheService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CacheService.swift; sourceTree = "<group>"; };
 		0F6E81BD2F5953FD006C22F7 /* KeychainService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainService.swift; sourceTree = "<group>"; };
-		0F6E82A02F5953FD006C22F7 /* OAuthRefreshService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OAuthRefreshService.swift; sourceTree = "<group>"; };
 		0F6E81BF2F5953FD006C22F7 /* PopoverView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PopoverView.swift; sourceTree = "<group>"; };
 		0F6E81C02F5953FD006C22F7 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		0F6E81C12F5953FD006C22F7 /* StatusItemController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusItemController.swift; sourceTree = "<group>"; };
@@ -169,7 +167,6 @@
 				0F6E81BC2F5953FD006C22F7 /* CacheService.swift */,
 				0F6E81D22F5953FD006C22F7 /* HistoryService.swift */,
 				0F6E81BD2F5953FD006C22F7 /* KeychainService.swift */,
-				0F6E82A02F5953FD006C22F7 /* OAuthRefreshService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -360,7 +357,6 @@
 				0F6E81CA2F5953FD006C22F7 /* Credentials.swift in Sources */,
 				0F6E81CB2F5953FD006C22F7 /* AppSettings.swift in Sources */,
 				0F6E81CC2F5953FD006C22F7 /* APIService.swift in Sources */,
-				0F6E82A12F5953FD006C22F7 /* OAuthRefreshService.swift in Sources */,
 				0F6E81CD2F5953FD006C22F7 /* ClaudeUsageApp.swift in Sources */,
 				0F6E81CE2F5953FD006C22F7 /* SettingsView.swift in Sources */,
 				0F6E81CF2F5953FD006C22F7 /* AppDelegate.swift in Sources */,

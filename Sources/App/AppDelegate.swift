@@ -25,8 +25,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Wire up the menu bar icon + popover
         statusItemController = StatusItemController(appState: appState)
 
-        // Watch Claude Code's config directory for credential changes
+        // Watch Claude Code's config directory for credential changes.
+        // Drop the cached token first so the refresh re-reads the keychain and
+        // picks up a token the CLI may have just rotated.
         credentialWatcher = CredentialWatcher {
+            KeychainService.invalidateMemoryCache()
             Task { await self.appState.refresh() }
         }
         credentialWatcher.start()

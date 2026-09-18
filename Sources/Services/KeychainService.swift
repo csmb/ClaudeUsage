@@ -6,11 +6,14 @@ import Security
 /// SECURITY NOTE
 /// ─────────────
 /// This implementation uses the native Security framework API
-/// (`SecItemCopyMatching`).  macOS will display a standard consent
-/// dialog the first time the app tries to access the Keychain item:
+/// (`SecItemCopyMatching`).  macOS displays a standard consent dialog when
+/// the app accesses the Keychain item:
 ///
-///   "ClaudeUsage wants to access Claude Code credentials stored
+///   "Claude Usage wants to access key 'Claude Code-credentials'
 ///    in your keychain."  [Deny] [Allow] [Always Allow]
+///
+/// Choosing "Always Allow" grants this (code-signed) app persistent access to
+/// that item, so the dialog should appear only once.
 ///
 /// There is NO use of Process(), NSTask, shell-out, or the
 /// `/usr/bin/security` command-line tool anywhere in this file or
@@ -42,60 +45,38 @@ struct KeychainService {
     /// The service name Claude Code uses when it writes the token.
     static let claudeCodeService = "Claude Code-credentials"
 
-    /// Our own keychain item where we cache a copy of the credentials.
-    /// Because this app created the item, macOS never shows an ACL prompt for it.
-    private static let cachedService = "csmb.ClaudeUsage.cached-credentials"
-    private static let cachedAccount = "oauth-token"
-
-    /// In-memory credential cache — avoids hitting the keychain on every poll cycle.
+    /// In-memory credential cache — avoids reading the keychain on every poll
+    /// cycle. Claude Code (and its background daemon) keep the keychain item's
+    /// token fresh, so re-reading that item is how we pick up rotated tokens.
     private static var memoryCache: OAuthCredentials?
-
-    /// Serializes refresh attempts so polling + manual refresh can't race.
-    private static let refreshLock = NSLock()
 
     // MARK: - Public API
 
-    /// Load and decode the Claude Code OAuth credentials, checking caches first.
+    /// Load and decode the Claude Code OAuth credentials.
     ///
     /// Resolution order:
-    /// 1. In-memory cache (valid & unexpired)
-    /// 2. App's own keychain payload, if the access token is still valid
-    /// 3. App's own keychain payload + OAuth refresh (no user prompt)
-    /// 4. Claude Code's keychain item (may trigger system password dialog)
+    /// 1. In-memory cache (present & unexpired)
+    /// 2. Claude Code's keychain item — the source of truth
     ///
-    /// Steps 2–3 never prompt because our own keychain item is owned by this
-    /// app, and the refresh endpoint is a normal HTTPS call. Step 4 is only
-    /// reached on first launch or when the refresh token has been revoked.
+    /// Reading the keychain item prompts for consent the first time; choosing
+    /// "Always Allow" makes subsequent reads silent.
+    ///
+    /// We deliberately do NOT cache tokens in our own keychain item or refresh
+    /// them ourselves. The Claude Code CLI owns the OAuth refresh-token lineage
+    /// and rotates it (single-use), so any refresh token we cached would be
+    /// invalidated out from under us — the failed refresh would then force a
+    /// re-prompting read of the CLI's item. Reading the CLI's item directly
+    /// always yields the current, live token, so the consent dialog stays a
+    /// one-time event.
     static func loadCredentials() throws -> OAuthCredentials {
-        // 1. In-memory cache
         if let cached = memoryCache, cached.isValid {
             return cached
         }
 
-        // 2 & 3. Own keychain (plus in-process refresh if the access token lapsed)
-        if let payload = loadPayloadFromOwnKeychain() {
-            let creds = payload.toCredentials()
-            if creds.isValid {
-                memoryCache = creds
-                return creds
-            }
-            if let refreshed = performRefresh(refreshToken: payload.refreshToken, previous: payload) {
-                memoryCache = refreshed
-                return refreshed
-            }
-            // Fall through: either no refresh token or the refresh endpoint
-            // rejected ours. performRefresh() has already wiped our cache
-            // in the rejection case, so reading Claude Code's keychain next
-            // is the correct recovery path.
-        }
-
-        // 4. Claude Code's keychain (may prompt)
         let data = try readRawData(service: claudeCodeService)
         do {
             let wrapper = try JSONDecoder().decode(ClaudeKeychainWrapper.self, from: data)
-            let payload = wrapper.claudeAiOauth
-            saveToOwnKeychain(data: data)
-            let credentials = payload.toCredentials()
+            let credentials = wrapper.claudeAiOauth.toCredentials()
             memoryCache = credentials
             return credentials
         } catch {
@@ -103,131 +84,11 @@ struct KeychainService {
         }
     }
 
-    /// Clear all credential caches so the next `loadCredentials()` call
-    /// re-reads from Claude Code's keychain. Call this after a hard auth failure.
-    static func invalidateCredentials() {
-        memoryCache = nil
-        deleteFromOwnKeychain()
-    }
-
-    /// Drop only the in-memory copy. Used by the API layer on a 401 so the
-    /// next read can pick up a refreshed token from our own keychain without
-    /// discarding the refresh token we still need.
+    /// Drop the in-memory copy so the next `loadCredentials()` re-reads the
+    /// keychain. Called on a 401 (to pick up a token the CLI has since rotated)
+    /// and whenever the CLI's config directory changes.
     static func invalidateMemoryCache() {
         memoryCache = nil
-    }
-
-    // MARK: - Own keychain cache helpers
-
-    /// Read the full payload (access + refresh token) from the app's own keychain.
-    /// Never prompts, because the app created this item.
-    private static func loadPayloadFromOwnKeychain() -> ClaudeOAuthPayload? {
-        let query: [CFString: Any] = [
-            kSecClass:       kSecClassGenericPassword,
-            kSecAttrService: cachedService as CFString,
-            kSecAttrAccount: cachedAccount as CFString,
-            kSecReturnData:  true,
-            kSecMatchLimit:  kSecMatchLimitOne
-        ]
-        var result: AnyObject?
-        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
-              let data = result as? Data,
-              let wrapper = try? JSONDecoder().decode(ClaudeKeychainWrapper.self, from: data)
-        else { return nil }
-        return wrapper.claudeAiOauth
-    }
-
-    /// Save raw credential JSON to the app's own keychain item.
-    private static func saveToOwnKeychain(data: Data) {
-        let searchQuery: [CFString: Any] = [
-            kSecClass:       kSecClassGenericPassword,
-            kSecAttrService: cachedService as CFString,
-            kSecAttrAccount: cachedAccount as CFString,
-        ]
-        let attrs: [CFString: Any] = [kSecValueData: data]
-
-        let status = SecItemUpdate(searchQuery as CFDictionary, attrs as CFDictionary)
-        if status == errSecItemNotFound {
-            var addQuery = searchQuery
-            addQuery[kSecValueData] = data
-            SecItemAdd(addQuery as CFDictionary, nil)
-        }
-    }
-
-    /// Re-encode a payload and store it in the app's own keychain.
-    private static func savePayloadToOwnKeychain(_ payload: ClaudeOAuthPayload) {
-        let wrapper = ClaudeKeychainWrapper(claudeAiOauth: payload)
-        guard let data = try? JSONEncoder().encode(wrapper) else { return }
-        saveToOwnKeychain(data: data)
-    }
-
-    // MARK: - OAuth refresh
-
-    /// Calls the OAuth refresh endpoint (bridged sync-from-async). Returns the
-    /// refreshed credentials, or nil on a transient failure (network down,
-    /// 5xx, decoding glitch) so the caller can continue on with what we have.
-    ///
-    /// On a hard `refreshTokenRejected` (401/403) this method wipes our own
-    /// cache so the fallback to Claude Code's keychain gets a clean read.
-    private static func performRefresh(
-        refreshToken: String,
-        previous: ClaudeOAuthPayload
-    ) -> OAuthCredentials? {
-        refreshLock.lock()
-        defer { refreshLock.unlock() }
-
-        // Another thread may have refreshed while we were waiting on the lock.
-        if let payload = loadPayloadFromOwnKeychain() {
-            let creds = payload.toCredentials()
-            if creds.isValid { return creds }
-        }
-
-        let semaphore = DispatchSemaphore(value: 0)
-        var response: OAuthRefreshService.TokenResponse?
-        var refreshError: Error?
-
-        Task.detached {
-            do { response = try await OAuthRefreshService().refresh(refreshToken: refreshToken) }
-            catch { refreshError = error }
-            semaphore.signal()
-        }
-        _ = semaphore.wait(timeout: .now() + 20)
-
-        if let err = refreshError {
-            if case OAuthRefreshError.refreshTokenRejected = err {
-                print("[KeychainService] refresh token rejected; clearing own cache")
-                memoryCache = nil
-                deleteFromOwnKeychain()
-            } else {
-                print("[KeychainService] refresh transient failure: \(err.localizedDescription)")
-            }
-            return nil
-        }
-        guard let resp = response else {
-            print("[KeychainService] refresh timed out")
-            return nil
-        }
-
-        let newExpiryMs = Date().addingTimeInterval(resp.expiresIn ?? 3600).timeIntervalSince1970 * 1000
-        let newPayload = ClaudeOAuthPayload(
-            accessToken:      resp.accessToken,
-            refreshToken:     resp.refreshToken ?? previous.refreshToken,
-            expiresAt:        newExpiryMs,
-            subscriptionType: previous.subscriptionType
-        )
-        savePayloadToOwnKeychain(newPayload)
-        print("[KeychainService] refreshed access token via OAuth")
-        return newPayload.toCredentials()
-    }
-
-    /// Remove the app's cached credentials from the keychain.
-    private static func deleteFromOwnKeychain() {
-        let query: [CFString: Any] = [
-            kSecClass:       kSecClassGenericPassword,
-            kSecAttrService: cachedService as CFString,
-            kSecAttrAccount: cachedAccount as CFString,
-        ]
-        SecItemDelete(query as CFDictionary)
     }
 
     // MARK: - Claude Code keychain access
@@ -270,8 +131,8 @@ struct KeychainService {
 /// Watches the Claude Code credential directory for changes and fires a
 /// callback when the Keychain item is likely to have been refreshed.
 ///
-/// Claude Code stores session metadata under
-///   ~/.config/claude/  (or $CLAUDE_CONFIG_DIR)
+/// Modern Claude Code keeps session metadata under ~/.claude/ (and falls back
+/// to ~/.config/claude/ on older installs, or $CLAUDE_CONFIG_DIR if set).
 /// Watching that directory lets us pick up token refreshes promptly
 /// without aggressive polling.
 final class CredentialWatcher {
@@ -312,7 +173,11 @@ final class CredentialWatcher {
            !env.isEmpty {
             return URL(fileURLWithPath: env)
         }
-        return FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".config/claude")
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        let modern = home.appendingPathComponent(".claude")
+        if FileManager.default.fileExists(atPath: modern.path) {
+            return modern
+        }
+        return home.appendingPathComponent(".config/claude")
     }
 }
