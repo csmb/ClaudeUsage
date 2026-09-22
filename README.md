@@ -17,9 +17,9 @@ A macOS menu bar app that shows your Claude Code usage across rate-limit windows
 | Property | Value |
 |---|---|
 | App Sandbox | Disabled (required to read Claude Code's Keychain item) |
-| Keychain access | `SecItemCopyMatching` — macOS may prompt on first launch |
+| Keychain access | Reads Claude Code's item the way the Claude Code CLI does, via `/usr/bin/security` — no prompts (see `KeychainService.swift` for why) |
 | Network | Outbound HTTPS to `api.anthropic.com` only |
-| Shell commands | None — no `Process()`, `NSTask`, or `security` CLI calls |
+| Shell commands | One: `/usr/bin/security find-generic-password`, by absolute path with no shell, to read that item |
 
 ## Build & Install
 

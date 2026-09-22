@@ -6,14 +6,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     var appState              = AppState()   // eager init — must exist before SwiftUI reads body
     var statusItemController:  StatusItemController!
-    var credentialWatcher:     CredentialWatcher!
     var demoSession:           DemoSession?
 
     // MARK: - Launch
 
     func applicationDidFinishLaunching(_ notification: Notification) {
 
-        // Screenshot run: synthetic data, no polling, no credential watcher.
+        // Screenshot run: synthetic data, no polling, no keychain reads.
         if let config = DemoMode.current {
             if let name = config.appearance { NSApp.appearance = NSAppearance(named: name) }
             statusItemController = StatusItemController(appState: appState)
@@ -25,16 +24,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Wire up the menu bar icon + popover
         statusItemController = StatusItemController(appState: appState)
 
-        // Watch Claude Code's config directory for credential changes.
-        // Drop the cached token first so the refresh re-reads the keychain and
-        // picks up a token the CLI may have just rotated.
-        credentialWatcher = CredentialWatcher {
-            KeychainService.invalidateMemoryCache()
-            Task { await self.appState.refresh() }
-        }
-        credentialWatcher.start()
-
-        // Start the polling loop (fires immediately, then on schedule)
+        // Start the polling loop (fires immediately, then on schedule).
+        // KeychainService serves its cached token until it is within its
+        // expiry buffer; an early CLI rotation surfaces as a 401, which
+        // re-reads the keychain on retry.
         appState.polling.start()
 
         // Listen for sleep/wake
@@ -69,6 +62,5 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         appState.polling.stop()
-        credentialWatcher?.stop()   // nil during --demo runs
     }
 }

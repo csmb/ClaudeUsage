@@ -16,14 +16,14 @@ macOS menu bar app that shows Claude Code API usage (5-hour, 7-day, and 7-day Op
 Sources/
   App/
     ClaudeUsageApp.swift    — @main entry point, NSApplicationDelegateAdaptor
-    AppDelegate.swift       — Lifecycle: sleep/wake, polling start/stop, credential watcher
+    AppDelegate.swift       — Lifecycle: sleep/wake, polling start/stop
   Models/
     UsageData.swift         — UsageResponse, UsageWindow, UsageDataPoint, UtilizationLevel
     Credentials.swift       — OAuthCredentials, ClaudeKeychainWrapper (JSON shape)
     AppSettings.swift       — UserDefaults-backed settings (poll interval, notifications)
   Services/
     APIService.swift        — GET https://api.anthropic.com/api/oauth/usage (ephemeral URLSession, no redirects)
-    KeychainService.swift   — Reads Claude Code OAuth token via Security framework (SecItemCopyMatching)
+    KeychainService.swift   — Reads Claude Code's OAuth token by running /usr/bin/security (see its header)
     CacheService.swift      — ~/Library/Caches/<bundle>/usage_cache.json (24h TTL)
     HistoryService.swift    — ~/Library/Caches/<bundle>/usage_history.json (rolling 7-day log)
   Managers/
@@ -39,19 +39,17 @@ Scripts/
 
 ## Key Design Decisions
 
-- **No shell-outs for keychain access.** Uses native `SecItemCopyMatching` so macOS shows a proper consent dialog. Never uses `Process()`, `NSTask`, or `/usr/bin/security`.
+- **Keychain reads go through `/usr/bin/security`, deliberately.** The Claude Code CLI rewrites its item via security(1) on every token refresh, and macOS resets the item's partition list to the writer each time, revoking any "Always Allow" given to this app. `SecItemCopyMatching` therefore re-prompted every ~8h and after every rebuild. Reading via security(1), as the CLI itself does, never prompts and grants no access the item's ACL doesn't already allow. Don't switch back; see `tasks/lessons.md`.
 - **Adaptive polling.** Poll interval adjusts based on utilization level: low=5m, medium=5m, high=3m, critical=2m. Configurable override in settings.
-- **Credential watcher.** Monitors `~/.config/claude/` for file changes to detect token refreshes without aggressive polling.
 - **Color-coded per window.** Each usage window (5h, 7d) is colored independently by its own utilization level, both in the menu bar and in the popover cards.
 - **Dark/light mode aware.** All accent colors have explicit dark and light variants.
 
 ## Auth Flow
 
 1. User logs into Claude Code CLI (stores OAuth token in macOS keychain under service `"Claude Code-credentials"`)
-2. App reads token via `SecItemCopyMatching` — macOS shows keychain consent dialog on first access
-3. Token has `expiresAt` (unix ms) with 5-minute validity buffer
-4. `CredentialWatcher` monitors `~/.config/claude/` to detect token refreshes
-5. API requests use `Authorization: Bearer <token>` + `anthropic-beta: oauth-2025-04-20`
+2. App reads the item via `/usr/bin/security find-generic-password -w` (no prompt), then caches the token in memory
+3. Token has `expiresAt` (unix ms) with 5-minute validity buffer; the app re-reads the item when the cached token nears expiry, or on a 401 (drop cache, re-read, retry once)
+4. API requests use `Authorization: Bearer <token>` + `anthropic-beta: oauth-2025-04-20`
 
 ## API
 
@@ -67,6 +65,9 @@ xcodebuild -project ClaudeUsage.xcodeproj -scheme ClaudeUsage -configuration Deb
 
 # Or open in Xcode
 open ClaudeUsage.xcodeproj
+
+# Unit tests (builds its own non-hardened copy; see Makefile)
+make test
 ```
 
 ## Data Storage

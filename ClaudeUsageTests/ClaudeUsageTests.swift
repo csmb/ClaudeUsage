@@ -1,12 +1,12 @@
 import Testing
 import Foundation
-@testable import ClaudeUsage
+@testable import Claude_Usage
 
 // MARK: - UtilizationLevel
 
 struct UtilizationLevelTests {
 
-    @Test func levels_atBoundaries() {
+    @Test @MainActor func levels_atBoundaries() {
         #expect(UtilizationLevel(fraction: 0.00)  == .low)
         #expect(UtilizationLevel(fraction: 0.499) == .low)
         #expect(UtilizationLevel(fraction: 0.50)  == .medium)
@@ -17,7 +17,7 @@ struct UtilizationLevelTests {
         #expect(UtilizationLevel(fraction: 1.00)  == .critical)
     }
 
-    @Test func pollIntervals() {
+    @Test @MainActor func pollIntervals() {
         #expect(UtilizationLevel.low.pollInterval      == 300)
         #expect(UtilizationLevel.medium.pollInterval   == 300)
         #expect(UtilizationLevel.high.pollInterval     == 180)
@@ -96,7 +96,7 @@ struct CacheAgeTextTests {
 // MARK: - Credentials decoding
 
 struct CredentialsDecodeTests {
-    @Test func decode_preservesRefreshToken() throws {
+    @Test @MainActor func decode_preservesRefreshToken() throws {
         let json = """
         {"claudeAiOauth":{"accessToken":"acc","refreshToken":"ref","expiresAt":1700000000000,"subscriptionType":"pro"}}
         """.data(using: .utf8)!
@@ -104,5 +104,122 @@ struct CredentialsDecodeTests {
         let creds = wrapper.claudeAiOauth.toCredentials()
         #expect(creds.accessToken  == "acc")
         #expect(creds.refreshToken == "ref")
+    }
+}
+
+// MARK: - Reading Claude Code's item through security(1)
+
+/// What `security find-generic-password -w` prints, captured from the real
+/// tool: the value plus a newline, or — when any byte isn't printable ASCII —
+/// the whole value as lowercase hex (SecurityTool's keychain_find.c).
+struct SecurityOutputDecodeTests {
+
+    @Test @MainActor func printableValue_isReturnedWithoutTrailingNewline() throws {
+        let printed = Data(#"{"a":"x"}"#.utf8) + [0x0a]
+        #expect(try KeychainService.decodeSecurityOutput(printed) == Data(#"{"a":"x"}"#.utf8))
+    }
+
+    @Test @MainActor func nonPrintableValue_isHexDecoded() throws {
+        let printed = Data("7b2261223a22c3a9227d\n".utf8)
+        #expect(try KeychainService.decodeSecurityOutput(printed) == Data(#"{"a":"é"}"#.utf8))
+    }
+
+    @Test @MainActor func emptyOutput_throws() {
+        #expect(throws: KeychainError.self) {
+            try KeychainService.decodeSecurityOutput(Data("\n".utf8))
+        }
+    }
+
+    @Test @MainActor func unrecognisedOutput_throws() {
+        #expect(throws: KeychainError.self) {
+            try KeychainService.decodeSecurityOutput(Data("not a keychain value\n".utf8))
+        }
+    }
+}
+
+/// Round-trips through the real /usr/bin/security against a throwaway
+/// keychain, so the login keychain is never touched.
+struct SecurityToolReadTests {
+
+    @Test @MainActor func readsStoredValue() throws {
+        let keychain = try ThrowawayKeychain()
+        defer { keychain.remove() }
+        try keychain.addGenericPassword(service: "svc", account: "acct", value: #"{"a":"é"}"#)
+
+        let data = try KeychainService.readItem(service: "svc", account: "acct", keychain: keychain.path)
+
+        #expect(data == Data(#"{"a":"é"}"#.utf8))
+    }
+
+    @Test @MainActor func missingItem_throwsItemNotFound() throws {
+        let keychain = try ThrowawayKeychain()
+        defer { keychain.remove() }
+
+        let error = #expect(throws: KeychainError.self) {
+            try KeychainService.readItem(service: "svc", account: "acct", keychain: keychain.path)
+        }
+        guard case .itemNotFound? = error else {
+            Issue.record("expected .itemNotFound, got \(String(describing: error))")
+            return
+        }
+    }
+
+    /// Reads run on the main actor. Waiting must not spin the main run loop,
+    /// or timers, UI events and XCTest itself run inside a half-finished
+    /// refresh — which deadlocked the test host.
+    @Test @MainActor func read_doesNotRunOtherMainRunLoopWork() throws {
+        let keychain = try ThrowawayKeychain()
+        defer { keychain.remove() }
+        try keychain.addGenericPassword(service: "svc", account: "acct", value: "{}")
+
+        // Main-thread only: the block and the test both run there.
+        final class Probe: @unchecked Sendable { var reading = true, ranDuringRead = false }
+        let probe = Probe()
+        RunLoop.main.perform { if probe.reading { probe.ranDuringRead = true } }
+        _ = try KeychainService.readItem(service: "svc", account: "acct", keychain: keychain.path)
+        probe.reading = false
+
+        #expect(!probe.ranDuringRead)
+    }
+}
+
+/// A keychain file that exists for one test. `security create-keychain` makes
+/// a legacy keychain without partition lists, which is all these tests need:
+/// they check how we drive security(1), not how macOS guards the item.
+private struct ThrowawayKeychain {
+    let path = FileManager.default.temporaryDirectory
+        .appendingPathComponent("ClaudeUsageTests-\(UUID().uuidString).keychain-db").path
+
+    init() throws {
+        try Self.security("create-keychain", "-p", "test", path)
+    }
+
+    /// Stores `value` hex-encoded with `-X`, as Claude Code does. Passing it with
+    /// `-w` would not be byte-exact: Process hands arguments over in file-system
+    /// representation, which decomposes "é" into "e" + a combining accent.
+    func addGenericPassword(service: String, account: String, value: String) throws {
+        let hex = value.utf8.map { String(format: "%02x", $0) }.joined()
+        try Self.security("add-generic-password", "-s", service, "-a", account, "-X", hex, path)
+    }
+
+    func remove() {
+        try? Self.security("delete-keychain", path)
+    }
+
+    private struct SecurityFailed: Error { let arguments: [String]; let status: Int32 }
+
+    private static func security(_ arguments: String...) throws {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/security")
+        process.arguments = arguments
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        let exited = DispatchSemaphore(value: 0)   // not waitUntilExit(): see above
+        process.terminationHandler = { _ in exited.signal() }
+        try process.run()
+        exited.wait()
+        guard process.terminationStatus == 0 else {
+            throw SecurityFailed(arguments: arguments, status: process.terminationStatus)
+        }
     }
 }

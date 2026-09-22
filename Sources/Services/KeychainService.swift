@@ -1,30 +1,31 @@
 import Foundation
-import Security
 
 /// Reads the Claude Code OAuth token from the macOS Keychain.
 ///
-/// SECURITY NOTE
-/// ─────────────
-/// This implementation uses the native Security framework API
-/// (`SecItemCopyMatching`).  macOS displays a standard consent dialog when
-/// the app accesses the Keychain item:
+/// WHY THIS RUNS /usr/bin/security
+/// ───────────────────────────────
+/// The token lives in Claude Code's own item ("Claude Code-credentials"),
+/// which the CLI rewrites through `/usr/bin/security` on every token refresh
+/// (roughly every 8 hours). Each data write re-encrypts the item, and macOS
+/// resets its partition list to the writer alone (`apple-tool:`, i.e.
+/// security(1)). That silently revokes any "Always Allow" granted to this
+/// app, so reading through the Security framework (`SecItemCopyMatching`)
+/// re-prompted after every CLI refresh — and after every rebuild, since a
+/// self-signed app's partition ID is its cdhash. See tasks/lessons.md.
 ///
-///   "Claude Usage wants to access key 'Claude Code-credentials'
-///    in your keychain."  [Deny] [Allow] [Always Allow]
-///
-/// Choosing "Always Allow" grants this (code-signed) app persistent access to
-/// that item, so the dialog should appear only once.
-///
-/// There is NO use of Process(), NSTask, shell-out, or the
-/// `/usr/bin/security` command-line tool anywhere in this file or
-/// this project.  Those approaches silently bypass the consent dialog,
-/// which is the exact security flaw this app was written to avoid.
+/// security(1) is the one reader whose access every CLI write preserves, so
+/// we read the item exactly the way the CLI does. This grants nothing new:
+/// the item's ACL already lets any process running as the user read it this
+/// way. Hardening: absolute executable path (sealed system volume, no PATH
+/// lookup), arguments passed as an array (no shell), the secret returned on
+/// stdout (never on a command line), a timeout, and the output never logged.
 
 enum KeychainError: LocalizedError {
     case itemNotFound
     case unexpectedData
     case decodingFailed(Error)
-    case keychainStatus(OSStatus)
+    case securityToolFailed(Int32)
+    case timedOut
 
     var errorDescription: String? {
         switch self {
@@ -34,8 +35,10 @@ enum KeychainError: LocalizedError {
             return "Keychain returned data in an unexpected format."
         case .decodingFailed(let err):
             return "Could not decode Keychain credentials: \(err.localizedDescription)"
-        case .keychainStatus(let status):
-            return "Keychain error (OSStatus \(status)): \(SecCopyErrorMessageString(status, nil) as String? ?? "unknown")"
+        case .securityToolFailed(let status):
+            return "Could not read Claude Code's keychain item (security exited with status \(status))."
+        case .timedOut:
+            return "Timed out reading Claude Code's keychain item."
         }
     }
 }
@@ -45,7 +48,7 @@ struct KeychainService {
     /// The service name Claude Code uses when it writes the token.
     static let claudeCodeService = "Claude Code-credentials"
 
-    /// In-memory credential cache — avoids reading the keychain on every poll
+    /// In-memory credential cache — avoids running security(1) on every poll
     /// cycle. Claude Code (and its background daemon) keep the keychain item's
     /// token fresh, so re-reading that item is how we pick up rotated tokens.
     private static var memoryCache: OAuthCredentials?
@@ -58,16 +61,11 @@ struct KeychainService {
     /// 1. In-memory cache (present & unexpired)
     /// 2. Claude Code's keychain item — the source of truth
     ///
-    /// Reading the keychain item prompts for consent the first time; choosing
-    /// "Always Allow" makes subsequent reads silent.
-    ///
     /// We deliberately do NOT cache tokens in our own keychain item or refresh
     /// them ourselves. The Claude Code CLI owns the OAuth refresh-token lineage
     /// and rotates it (single-use), so any refresh token we cached would be
-    /// invalidated out from under us — the failed refresh would then force a
-    /// re-prompting read of the CLI's item. Reading the CLI's item directly
-    /// always yields the current, live token, so the consent dialog stays a
-    /// one-time event.
+    /// invalidated out from under us. Reading the CLI's item directly always
+    /// yields the current, live token.
     static func loadCredentials() throws -> OAuthCredentials {
         if let cached = memoryCache, cached.isValid {
             return cached
@@ -85,99 +83,89 @@ struct KeychainService {
     }
 
     /// Drop the in-memory copy so the next `loadCredentials()` re-reads the
-    /// keychain. Called on a 401 (to pick up a token the CLI has since rotated)
-    /// and whenever the CLI's config directory changes.
+    /// keychain. Called on a 401, to pick up a token the CLI has since rotated.
     static func invalidateMemoryCache() {
         memoryCache = nil
     }
 
     // MARK: - Claude Code keychain access
 
-    /// Reads the raw Data stored for `service` using the Security framework.
-    /// This is the ONLY entry point for Claude Code's Keychain item in this project.
+    /// Reads Claude Code's item, matched on the same service + account the CLI writes.
     private static func readRawData(service: String) throws -> Data {
-        // Build the query dictionary.
-        // kSecAttrService narrows the lookup to the exact service name.
-        // kSecReturnData asks for the raw value (not just attributes).
-        // kSecMatchLimitOne ensures we get at most one result.
-        let query: [CFString: Any] = [
-            kSecClass:            kSecClassGenericPassword,
-            kSecAttrService:      service as CFString,
-            kSecReturnData:       true,
-            kSecMatchLimit:       kSecMatchLimitOne
-        ]
+        try readItem(service: service, account: NSUserName())
+    }
 
-        var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
+    /// Longest we wait for security(1). A read normally takes ~20 ms; the
+    /// Claude Code CLI gives up on the same call after 2 s.
+    private static let securityTimeout: TimeInterval = 5
 
-        switch status {
-        case errSecSuccess:
-            guard let data = result as? Data else {
+    /// Reads a generic password by running
+    /// `/usr/bin/security find-generic-password -s <service> -a <account> -w`.
+    /// `keychain` limits the search to one keychain file; nil searches the
+    /// user's keychain list.
+    static func readItem(service: String, account: String, keychain: String? = nil) throws -> Data {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/security")
+        process.arguments = ["find-generic-password", "-s", service, "-a", account, "-w"]
+            + (keychain.map { [$0] } ?? [])
+        let stdout = Pipe()
+        process.standardOutput = stdout
+        process.standardError  = FileHandle.nullDevice
+        // Wait on the termination handler, not waitUntilExit(): that spins the
+        // run loop, so timers, UI events or XCTest would run inside a
+        // half-finished refresh on the main actor.
+        let exited = DispatchSemaphore(value: 0)
+        process.terminationHandler = { _ in exited.signal() }
+
+        try process.run()
+
+        // Kill a hung read so a stuck security(1) can't wedge the app.
+        let watchdog = DispatchWorkItem { if process.isRunning { process.terminate() } }
+        DispatchQueue.global().asyncAfter(deadline: .now() + securityTimeout, execute: watchdog)
+
+        // Drain to EOF before waiting, so a large value can't fill the pipe
+        // and stall the child.
+        let output = stdout.fileHandleForReading.readDataToEndOfFile()
+        exited.wait()
+        watchdog.cancel()
+
+        guard process.terminationReason == .exit else { throw KeychainError.timedOut }
+        switch process.terminationStatus {
+        case 0:  return try decodeSecurityOutput(output)
+        case 44: throw KeychainError.itemNotFound   // errSecItemNotFound, as an exit status
+        default: throw KeychainError.securityToolFailed(process.terminationStatus)
+        }
+    }
+
+    /// Turns what `security -w` printed back into the item's bytes. It prints
+    /// the value plus a newline, or — when any byte isn't printable ASCII —
+    /// the whole value as lowercase hex (SecurityTool's keychain_find.c).
+    /// Claude Code's item always holds a JSON object, so output starting with
+    /// "{" was printed verbatim and anything else must be the hex form.
+    static func decodeSecurityOutput(_ output: Data) throws -> Data {
+        guard let text = String(data: output, encoding: .utf8)?.trimmingCharacters(in: .newlines),
+              !text.isEmpty else {
+            throw KeychainError.unexpectedData
+        }
+        if text.hasPrefix("{") { return Data(text.utf8) }
+
+        let digits = Array(text.utf8)
+        guard digits.count.isMultiple(of: 2) else { throw KeychainError.unexpectedData }
+        var bytes = Data(capacity: digits.count / 2)
+        for i in stride(from: 0, to: digits.count, by: 2) {
+            guard let high = hexValue(digits[i]), let low = hexValue(digits[i + 1]) else {
                 throw KeychainError.unexpectedData
             }
-            return data
-
-        case errSecItemNotFound:
-            throw KeychainError.itemNotFound
-
-        default:
-            throw KeychainError.keychainStatus(status)
+            bytes.append(high << 4 | low)
         }
-    }
-}
-
-// MARK: - File-System Watcher (credential refresh on change)
-
-/// Watches the Claude Code credential directory for changes and fires a
-/// callback when the Keychain item is likely to have been refreshed.
-///
-/// Modern Claude Code keeps session metadata under ~/.claude/ (and falls back
-/// to ~/.config/claude/ on older installs, or $CLAUDE_CONFIG_DIR if set).
-/// Watching that directory lets us pick up token refreshes promptly
-/// without aggressive polling.
-final class CredentialWatcher {
-
-    private var source: DispatchSourceFileSystemObject?
-    private let callback: () -> Void
-    private let queue = DispatchQueue(label: "com.claudeusage.credentialwatcher")
-
-    init(callback: @escaping () -> Void) {
-        self.callback = callback
+        return bytes
     }
 
-    func start() {
-        let dir = claudeConfigDir()
-        let fd = open(dir.path, O_EVTONLY)
-        guard fd >= 0 else { return }
-
-        let src = DispatchSource.makeFileSystemObjectSource(
-            fileDescriptor: fd,
-            eventMask: [.write, .rename, .delete],
-            queue: queue
-        )
-        src.setEventHandler { [weak self] in
-            DispatchQueue.main.async { self?.callback() }
+    private static func hexValue(_ digit: UInt8) -> UInt8? {
+        switch digit {
+        case UInt8(ascii: "0")...UInt8(ascii: "9"): return digit - UInt8(ascii: "0")
+        case UInt8(ascii: "a")...UInt8(ascii: "f"): return digit - UInt8(ascii: "a") + 10
+        default: return nil
         }
-        src.setCancelHandler { close(fd) }
-        src.resume()
-        self.source = src
-    }
-
-    func stop() {
-        source?.cancel()
-        source = nil
-    }
-
-    private func claudeConfigDir() -> URL {
-        if let env = ProcessInfo.processInfo.environment["CLAUDE_CONFIG_DIR"],
-           !env.isEmpty {
-            return URL(fileURLWithPath: env)
-        }
-        let home = FileManager.default.homeDirectoryForCurrentUser
-        let modern = home.appendingPathComponent(".claude")
-        if FileManager.default.fileExists(atPath: modern.path) {
-            return modern
-        }
-        return home.appendingPathComponent(".config/claude")
     }
 }
