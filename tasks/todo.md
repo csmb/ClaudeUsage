@@ -100,6 +100,31 @@ fought the CLI's refresh-token rotation), direct reads (50ee794), watcher remova
   the app's re-read. It is the same state as the live run above, so no prompt is expected.
 - ⏭️ UI tests not run; XCUITest can raise an Automation permission prompt.
 
-**Follow-ups (not done)**
-- Old-code builds still on disk: DerivedData `Release/Claude Usage.app` and the
-  iCloud `build/` folder. Harmless unless opened by hand.
+**Follow-ups**
+- ~~Old-code builds still on disk: DerivedData `Release/Claude Usage.app` and the
+  iCloud `build/` folder.~~ Deleted 2026-09-24 (see below).
+
+# Exit logging + old-build cleanup (2026-09-24)
+
+Why: the app stopped fetching for ~25h on 09-23 and the unified log (kept ~1 day)
+had rotated, so how it ended couldn't be established.
+
+- [x] `LogFile`: shared append/trim helper; the rate-limit log now uses it (same line format).
+- [x] `LifecycleLog` + `AppDelegate` hooks: a launch line (pid, bundle path) and an exit line
+      with the reason: quit from the app / quit requested by <app> (pid) /
+      logout|restart|shutdown / SIGTERM|SIGINT|SIGHUP. The next launch notes any run that
+      ended without an exit (force quit, crash, kill -9, power loss).
+- [x] Unit-test hosts skip logging (XCTest env vars) so they can't pass for crashes.
+- [x] Deleted old-code builds (DerivedData `Release/Claude Usage.app`, and the iCloud `build/`
+      folder at 337 MB) after unregistering them from LaunchServices. Only fixed copies remain.
+- [x] Docs: new files + both logs in CLAUDE.md/AGENTS.md; dropped a "circuit breaker"
+      claim that no code implements.
+
+**Verification**
+- ✅ `make test`: 29/29 (10 new), no warnings in touched files.
+- ✅ Live, `/Applications` build: AppleScript quit → `quit requested by osascript (pid 11985)`
+  (the real sender pid); `kill` → `SIGTERM`, and the app still exits; `kill -9` → the next launch
+  logs `previous run pid=12180 ended without logging an exit`; the rate-limit log format is
+  unchanged; 0 keychain prompts across 4 relaunches.
+- ⏭️ Not exercised live: the in-app Quit button (unit-tested: no Apple Event → "quit from the
+  app") and logout/restart/shutdown (reason mapping unit-tested).

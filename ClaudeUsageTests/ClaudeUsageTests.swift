@@ -183,6 +183,97 @@ struct SecurityToolReadTests {
     }
 }
 
+// MARK: - LogFile
+
+struct LogFileTests {
+
+    @Test @MainActor func append_writesTimestampedLinesInOrder() {
+        let url = temporaryLogURL(); defer { try? FileManager.default.removeItem(at: url) }
+        let log = LogFile(url: url)
+
+        log.append("first", at: Date(timeIntervalSince1970: 0))
+        log.append("second", at: Date(timeIntervalSince1970: 61))
+
+        #expect(log.lines() == ["1970-01-01T00:00:00Z first", "1970-01-01T00:01:01Z second"])
+    }
+
+    @Test @MainActor func missingFile_hasNoLines() {
+        #expect(LogFile(url: temporaryLogURL()).lines().isEmpty)
+    }
+
+    @Test @MainActor func pastTheSizeCap_keepsOnlyTheNewestLines() {
+        let url = temporaryLogURL(); defer { try? FileManager.default.removeItem(at: url) }
+        // Each line is 27 bytes, so the 4th append crosses 100 bytes and trims to 2.
+        let log = LogFile(url: url, maxBytes: 100, keepLines: 2)
+
+        for n in 1...4 { log.append("line\(n)", at: Date(timeIntervalSince1970: 0)) }
+
+        #expect(log.lines() == ["1970-01-01T00:00:00Z line3", "1970-01-01T00:00:00Z line4"])
+    }
+
+    private func temporaryLogURL() -> URL {
+        FileManager.default.temporaryDirectory.appendingPathComponent("ClaudeUsageTests-\(UUID().uuidString).log")
+    }
+}
+
+// MARK: - LifecycleLog
+
+struct LifecycleLogTests {
+
+    @Test @MainActor func cleanExit_isNotReported() {
+        let lines = ["T launch pid=100 path=/Applications/Claude Usage.app",
+                     "T exit pid=100 quit from the app"]
+        #expect(LifecycleLog.runWithoutExit(in: lines, isRunning: { _ in false }) == nil)
+    }
+
+    @Test @MainActor func lastLaunchWithoutExit_isReported() {
+        let lines = ["T launch pid=100 path=/Applications/Claude Usage.app",
+                     "T exit pid=100 quit from the app",
+                     "T launch pid=200 path=/Applications/Claude Usage.app"]
+        #expect(LifecycleLog.runWithoutExit(in: lines, isRunning: { _ in false }) == 200)
+    }
+
+    @Test @MainActor func stillRunningInstance_isNotReported() {
+        let lines = ["T launch pid=200 path=/Applications/Claude Usage.app"]
+        #expect(LifecycleLog.runWithoutExit(in: lines, isRunning: { $0 == 200 }) == nil)
+    }
+
+    @Test @MainActor func emptyLog_reportsNothing() {
+        #expect(LifecycleLog.runWithoutExit(in: [], isRunning: { _ in false }) == nil)
+    }
+
+    @Test @MainActor func noAppleEvent_isAQuitFromTheApp() {
+        #expect(LifecycleLog.quitReason(for: nil, senderPID: nil, appName: { _ in nil }) == "quit from the app")
+    }
+
+    @Test @MainActor func quitEventFromAnotherProcess_namesTheSender() {
+        let reason = LifecycleLog.quitReason(for: quitEvent(), senderPID: 812,
+                                             appName: { $0 == 812 ? "Activity Monitor" : nil })
+
+        #expect(reason == "quit requested by Activity Monitor (pid 812)")
+    }
+
+    @Test @MainActor func quitEventFromLoginWindow_givesTheReason() {
+        let cases: [(code: OSType, reason: String)] = [
+            (kAELogOut, "logout"), (kAEReallyLogOut, "logout"),
+            (kAERestart, "restart"), (kAEShowRestartDialog, "restart"),
+            (kAEShutDown, "shutdown"), (kAEShowShutdownDialog, "shutdown"),
+        ]
+        for (code, reason) in cases {
+            let event = quitEvent()
+            event.setAttribute(NSAppleEventDescriptor(enumCode: code), forKeyword: AEKeyword(kAEQuitReason))
+            // loginwindow is the sender here, but the reason wins.
+            #expect(LifecycleLog.quitReason(for: event, senderPID: 400, appName: { _ in "loginwindow" }) == reason)
+        }
+    }
+
+    private func quitEvent() -> NSAppleEventDescriptor {
+        NSAppleEventDescriptor(eventClass: AEEventClass(kCoreEventClass), eventID: AEEventID(kAEQuitApplication),
+                               targetDescriptor: nil, returnID: AEReturnID(kAutoGenerateReturnID),
+                               transactionID: AETransactionID(kAnyTransactionID))
+    }
+}
+
 /// A keychain file that exists for one test. `security create-keychain` makes
 /// a legacy keychain without partition lists, which is all these tests need:
 /// they check how we drive security(1), not how macOS guards the item.

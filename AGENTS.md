@@ -16,7 +16,7 @@ macOS menu bar app that shows Claude Code API usage (5-hour, 7-day, and 7-day Op
 Sources/
   App/
     ClaudeUsageApp.swift    — @main entry point, NSApplicationDelegateAdaptor
-    AppDelegate.swift       — Lifecycle: sleep/wake, polling start/stop
+    AppDelegate.swift       — Lifecycle: sleep/wake, polling start/stop, launch/exit logging
   Models/
     UsageData.swift         — UsageResponse, UsageWindow, UsageDataPoint, UtilizationLevel
     Credentials.swift       — OAuthCredentials, ClaudeKeychainWrapper (JSON shape)
@@ -26,9 +26,11 @@ Sources/
     KeychainService.swift   — Reads Claude Code's OAuth token by running /usr/bin/security (see its header)
     CacheService.swift      — ~/Library/Caches/<bundle>/usage_cache.json (24h TTL)
     HistoryService.swift    — ~/Library/Caches/<bundle>/usage_history.json (rolling 7-day log)
+    LogFile.swift           — Append-only timestamped log in Caches, trimmed past 64 KB (used by both logs below)
+    LifecycleLog.swift      — Launch/exit log: who quit the app, SIGTERM, runs that ended without an exit
   Managers/
     AppState.swift          — Central @MainActor ObservableObject: refresh logic, notifications, computed UI state
-    PollingManager.swift    — Adaptive timer (30s–300s based on utilization), circuit breaker after 5 failures
+    PollingManager.swift    — Adaptive timer (30s–300s based on utilization)
   UI/
     StatusItemController.swift — NSStatusItem + NSPopover, observes AppState via Combine
     PopoverView.swift       — Usage cards, charts, countdown timers, refresh button, settings gear
@@ -56,7 +58,7 @@ Scripts/
 
 - **Endpoint:** `GET https://api.anthropic.com/api/oauth/usage`
 - **Response shape:** `{ five_hour: { utilization, resets_at }, seven_day: {...}, seven_day_opus: {...} }`
-- **Error handling:** 401 → invalid credentials, 429 → rate limited (respects `Retry-After`), circuit breaker after 5 consecutive failures
+- **Error handling:** 401 → invalid credentials, 429 → rate limited (respects `Retry-After`); any other failure keeps the cached data and retries on the next tick
 
 ## Build & Run
 
@@ -78,4 +80,6 @@ make test
 | OAuth token | macOS system keychain (service: `Claude Code-credentials`) |
 | Usage cache | `~/Library/Caches/<bundleID>/usage_cache.json` |
 | Usage history | `~/Library/Caches/<bundleID>/usage_history.json` |
+| Fetch / rate-limit log | `~/Library/Caches/<bundleID>/ratelimit_log.txt` |
+| Launch / exit log | `~/Library/Caches/<bundleID>/lifecycle_log.txt` |
 | Settings | `UserDefaults.standard` |

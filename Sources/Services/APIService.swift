@@ -195,46 +195,11 @@ final class APIService {
 
     // MARK: - Rate Limit File Log
 
-    private static let logFile: URL = {
-        let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
-        let dir = caches.appendingPathComponent(Bundle.main.bundleIdentifier ?? "ClaudeUsage")
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        return dir.appendingPathComponent("ratelimit_log.txt")
-    }()
-
-    private static let logMaxBytes: Int = 64 * 1024      // trim when file exceeds 64 KB
-    private static let logKeepLines: Int = 500           // keep last 500 lines after trim
+    private static let rateLimitLog = LogFile(named: "ratelimit_log.txt")
 
     private static func logRateLimitToFile(statusCode: Int, headers: [String: String]) {
-        let iso = ISO8601DateFormatter()
-        iso.formatOptions = [.withInternetDateTime]
-        let ts = iso.string(from: Date())
-
         let rl = headers.filter { $0.key.contains("ratelimit") || $0.key.contains("rate-limit") || $0.key == "retry-after" }
         let extra = rl.isEmpty ? "" : " " + rl.sorted(by: { $0.key < $1.key }).map { "\($0.key)=\($0.value)" }.joined(separator: " ")
-        let line = "\(ts) status=\(statusCode)\(extra)\n"
-
-        if let handle = try? FileHandle(forWritingTo: logFile) {
-            handle.seekToEndOfFile()
-            handle.write(line.data(using: .utf8) ?? Data())
-            handle.closeFile()
-        } else {
-            try? line.data(using: .utf8)?.write(to: logFile)
-        }
-
-        // Rotate if file has grown too large
-        if let attrs = try? FileManager.default.attributesOfItem(atPath: logFile.path),
-           let size = attrs[.size] as? Int,
-           size > logMaxBytes {
-            trimLogFile()
-        }
-    }
-
-    private static func trimLogFile() {
-        guard let contents = try? String(contentsOf: logFile, encoding: .utf8) else { return }
-        let lines = contents.split(separator: "\n", omittingEmptySubsequences: false)
-        guard lines.count > logKeepLines else { return }
-        let kept = lines.suffix(logKeepLines).joined(separator: "\n")
-        try? kept.data(using: .utf8)?.write(to: logFile)
+        rateLimitLog.append("status=\(statusCode)\(extra)")
     }
 }

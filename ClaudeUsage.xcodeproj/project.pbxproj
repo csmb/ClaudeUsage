@@ -19,6 +19,8 @@
 		0F6E82B42F5953FD006C22F7 /* DemoMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F6E82B12F5953FD006C22F7 /* DemoMode.swift */; };
 		0F6E82B52F5953FD006C22F7 /* DemoData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F6E82B22F5953FD006C22F7 /* DemoData.swift */; };
 		0F6E82B62F5953FD006C22F7 /* DemoCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F6E82B32F5953FD006C22F7 /* DemoCapture.swift */; };
+		0F6E82B92F5953FD006C22F7 /* LogFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F6E82B72F5953FD006C22F7 /* LogFile.swift */; };
+		0F6E82BA2F5953FD006C22F7 /* LifecycleLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F6E82B82F5953FD006C22F7 /* LifecycleLog.swift */; };
 		0F6E81CD2F5953FD006C22F7 /* ClaudeUsageApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F6E81B22F5953FD006C22F7 /* ClaudeUsageApp.swift */; };
 		0F6E81CE2F5953FD006C22F7 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F6E81C02F5953FD006C22F7 /* SettingsView.swift */; };
 		0F6E81CF2F5953FD006C22F7 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F6E81B12F5953FD006C22F7 /* AppDelegate.swift */; };
@@ -65,6 +67,8 @@
 		0F6E82B12F5953FD006C22F7 /* DemoMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoMode.swift; sourceTree = "<group>"; };
 		0F6E82B22F5953FD006C22F7 /* DemoData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoData.swift; sourceTree = "<group>"; };
 		0F6E82B32F5953FD006C22F7 /* DemoCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoCapture.swift; sourceTree = "<group>"; };
+		0F6E82B72F5953FD006C22F7 /* LogFile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogFile.swift; sourceTree = "<group>"; };
+		0F6E82B82F5953FD006C22F7 /* LifecycleLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LifecycleLog.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -166,6 +170,8 @@
 				0F6E81BB2F5953FD006C22F7 /* APIService.swift */,
 				0F6E81BC2F5953FD006C22F7 /* CacheService.swift */,
 				0F6E81D22F5953FD006C22F7 /* HistoryService.swift */,
+				0F6E82B72F5953FD006C22F7 /* LogFile.swift */,
+				0F6E82B82F5953FD006C22F7 /* LifecycleLog.swift */,
 				0F6E81BD2F5953FD006C22F7 /* KeychainService.swift */,
 			);
 			path = Services;
@@ -365,6 +371,8 @@
 				0F6E82B42F5953FD006C22F7 /* DemoMode.swift in Sources */,
 				0F6E82B52F5953FD006C22F7 /* DemoData.swift in Sources */,
 				0F6E82B62F5953FD006C22F7 /* DemoCapture.swift in Sources */,
+				0F6E82B92F5953FD006C22F7 /* LogFile.swift in Sources */,
+				0F6E82BA2F5953FD006C22F7 /* LifecycleLog.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

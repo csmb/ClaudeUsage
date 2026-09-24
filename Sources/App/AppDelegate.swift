@@ -2,11 +2,15 @@ import AppKit
 
 /// Handles app lifecycle events that SwiftUI's @main doesn't cover:
 /// - Sleep / wake (pause/resume polling)
+/// - Launch / exit logging (see LifecycleLog)
 final class AppDelegate: NSObject, NSApplicationDelegate {
 
     var appState              = AppState()   // eager init — must exist before SwiftUI reads body
     var statusItemController:  StatusItemController!
     var demoSession:           DemoSession?
+
+    private var logsLifecycle = false
+    private var quitReason    = "quit from the app"
 
     // MARK: - Launch
 
@@ -20,6 +24,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             demoSession?.start()
             return
         }
+
+        // Unit-test runs host the app and end it without quitting, which the
+        // next launch would log as a crash, so they're left out.
+        logsLifecycle = !ProcessInfo.processInfo.environment.keys.contains { $0.hasPrefix("XCTest") }
+        if logsLifecycle { LifecycleLog.start() }
 
         // Wire up the menu bar icon + popover
         statusItemController = StatusItemController(appState: appState)
@@ -60,7 +69,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Termination
 
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        // Only here is the quit Apple Event (if any) still being handled.
+        quitReason = LifecycleLog.currentQuitReason()
+        return .terminateNow
+    }
+
     func applicationWillTerminate(_ notification: Notification) {
         appState.polling.stop()
+        if logsLifecycle { LifecycleLog.recordExit(quitReason) }
     }
 }
