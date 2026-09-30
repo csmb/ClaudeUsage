@@ -285,6 +285,31 @@ struct UsageChartView: View {
 
     @State private var hoverInfo: (date: Date, value: Double)?
 
+    /// Where the last-hour chart ends. Its axis is labelled from now ("now",
+    /// "15m"…), and the popover redraws every second, so drawn on the clock
+    /// its tick values would all be new each second. Swift Charts keeps the
+    /// views it makes for every axis value it has shown, which grew memory by
+    /// about 0.5 GB an hour until SwiftUI aborted. Drawn against this fixed
+    /// instant, its scale and ticks never change; only the points move.
+    private static let pinnedEnd = Date(timeIntervalSinceReferenceDate: 0)
+
+    private var labelledFromNow: Bool { windowHours <= 1 }
+
+    /// Where the chart draws `date`.
+    func plotted(_ date: Date) -> Date {
+        labelledFromNow ? Self.pinnedEnd.addingTimeInterval(date.timeIntervalSince(domainEnd)) : date
+    }
+
+    var xDomain: ClosedRange<Date> {
+        guard labelledFromNow else { return domainStart...domainEnd }
+        return Self.pinnedEnd.addingTimeInterval(-windowHours * 3600)...Self.pinnedEnd
+    }
+
+    /// The last-hour chart's ticks: now, then every 15 minutes back to an hour ago.
+    var hourTicks: [Date] {
+        stride(from: 0.0, through: 60, by: 15).map { xDomain.upperBound.addingTimeInterval(-$0 * 60) }
+    }
+
     private var usageGradient: LinearGradient {
         LinearGradient(
             stops: [
@@ -336,14 +361,14 @@ struct UsageChartView: View {
         Chart {
             ForEach(data, id: \.timestamp) { point in
                 AreaMark(
-                    x: .value("Time", point.timestamp),
+                    x: .value("Time", plotted(point.timestamp)),
                     y: .value("Usage %", point.pct)
                 )
                 .foregroundStyle(usageGradient.opacity(0.2))
                 .interpolationMethod(.catmullRom)
 
                 LineMark(
-                    x: .value("Time", point.timestamp),
+                    x: .value("Time", plotted(point.timestamp)),
                     y: .value("Usage %", point.pct)
                 )
                 .foregroundStyle(usageGradient)
@@ -352,7 +377,7 @@ struct UsageChartView: View {
 
             if let latest = data.last {
                 PointMark(
-                    x: .value("Time", latest.timestamp),
+                    x: .value("Time", plotted(latest.timestamp)),
                     y: .value("Usage %", latest.pct)
                 )
                 .foregroundStyle(Self.colorForPct(latest.pct))
@@ -360,11 +385,11 @@ struct UsageChartView: View {
             }
 
             if let hover = hoverInfo {
-                RuleMark(x: .value("Hover", hover.date))
+                RuleMark(x: .value("Hover", plotted(hover.date)))
                     .foregroundStyle(Color.secondary.opacity(0.3))
                     .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3]))
                 PointMark(
-                    x: .value("Time", hover.date),
+                    x: .value("Time", plotted(hover.date)),
                     y: .value("Usage %", hover.value)
                 )
                 .foregroundStyle(Self.colorForPct(hover.value))
@@ -381,19 +406,13 @@ struct UsageChartView: View {
             }
         }
         .chartYScale(domain: 0...100)
-        .chartXScale(domain: domainStart...domainEnd)
+        .chartXScale(domain: xDomain)
         .chartXAxis {
-            if windowHours <= 1 {
-                AxisMarks(values: [
-                    domainEnd,
-                    domainEnd.addingTimeInterval(-15 * 60),
-                    domainEnd.addingTimeInterval(-30 * 60),
-                    domainEnd.addingTimeInterval(-45 * 60),
-                    domainStart
-                ]) { value in
+            if labelledFromNow {
+                AxisMarks(values: hourTicks) { value in
                     AxisValueLabel {
                         if let date = value.as(Date.self) {
-                            let mins = Int(domainEnd.timeIntervalSince(date) / 60)
+                            let mins = Int(xDomain.upperBound.timeIntervalSince(date) / 60)
                             Text(mins == 0 ? "now" : mins == 60 ? "1h" : "\(mins)m")
                                 .font(.caption2)
                         }
@@ -434,7 +453,7 @@ struct UsageChartView: View {
                                 return
                             }
                             guard let nearest = data.min(by: {
-                                abs($0.timestamp.timeIntervalSince(date)) < abs($1.timestamp.timeIntervalSince(date))
+                                abs(plotted($0.timestamp).timeIntervalSince(date)) < abs(plotted($1.timestamp).timeIntervalSince(date))
                             }) else {
                                 hoverInfo = nil
                                 return

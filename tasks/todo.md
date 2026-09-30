@@ -1,3 +1,42 @@
+# Stop the app crashing every 13–37 hours — root cause (proven 2026-09-29)
+
+## Root cause
+
+The popover redraws every second (`PopoverView.now`), even while closed. The
+last-hour chart labels its axis relative to now, so its five tick values are
+`now`, `now − 15m`, … — five new Dates every second. Swift Charts keeps the views
+it builds for every axis value it has seen, so SwiftUI's attribute graph grows
+~740 allocations/s (~0.5 GB/h) until AttributeGraph can't grow its table and
+aborts (`AG::data::table::grow_region` precondition failure, SIGABRT).
+
+## Evidence
+
+- Six crash reports (09-23 → 09-29), all the same `grow_region` abort, matching
+  every "ended without logging an exit" line in lifecycle_log.txt.
+- JetsamEvent 09-29 16:36: Claude Usage was the largest process, ~3.4 GB.
+- A/B (Debug build, popover opened once then closed, `vmmap` AttributeGraph zone):
+  - HEAD: 15.9k → 135k allocations in 2.7 min, footprint 63 → 90 MB.
+  - B, chart domain frozen: flat.
+  - C, domain moving but 1h axis on automatic ticks: ~flat (small steps).
+
+## Plan
+
+- [x] Test: the last-hour chart's x-domain and ticks are the same at any `now`
+- [x] Fix: draw the last-hour chart against a fixed end instant, so its scale and
+      ticks never change and only the points move (labels unchanged)
+- [x] `make test` green
+- [x] Measure the fixed build with the same protocol; must stay flat
+- [x] Lesson in tasks/lessons.md; commit
+
+## Review
+
+- Fixed build, popover opened once then closed: 13,720 → 13,737 allocations over
+  3¾ min (HEAD: +119k in 2.7 min). Popover held open 3 min: flat at 13,738.
+- Demo screenshot matches screenshots/mixed-dark-popover.png: same "1h 45m 30m
+  15m" axis, points and latest-value dot where they were.
+- The 5h and 7d charts keep automatic clock ticks; those change hourly/daily,
+  so they add a handful of axis values a day, not five a second.
+
 # Stop the recurring keychain prompt — root cause (proven 2026-09-22)
 
 Previous plan (direct reads, commit 50ee794) is in git history. Its premise, that

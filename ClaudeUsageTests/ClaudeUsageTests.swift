@@ -1,5 +1,6 @@
 import Testing
 import Foundation
+import SwiftUI
 @testable import Claude_Usage
 
 // MARK: - UtilizationLevel
@@ -271,6 +272,44 @@ struct LifecycleLogTests {
         NSAppleEventDescriptor(eventClass: AEEventClass(kCoreEventClass), eventID: AEEventID(kAEQuitApplication),
                                targetDescriptor: nil, returnID: AEReturnID(kAutoGenerateReturnID),
                                transactionID: AETransactionID(kAnyTransactionID))
+    }
+}
+
+// MARK: - UsageChartView
+
+/// The popover redraws every second. Swift Charts keeps the views it makes for
+/// every axis value it has shown, so axis values that follow the clock grew
+/// memory until SwiftUI aborted.
+struct UsageChartViewTests {
+
+    private let now = Date(timeIntervalSinceReferenceDate: 812_345_678)
+
+    @Test @MainActor func lastHour_scaleAndTicks_dontFollowTheClock() {
+        let earlier = chart(hours: 1, now: now)
+        let later   = chart(hours: 1, now: now.addingTimeInterval(1))
+
+        #expect(earlier.xDomain == later.xDomain)
+        #expect(earlier.hourTicks == later.hourTicks)
+    }
+
+    @Test @MainActor func lastHour_drawsPointsByTheirAge() {
+        let c = chart(hours: 1, now: now)
+
+        #expect(c.xDomain.upperBound.timeIntervalSince(c.plotted(now.addingTimeInterval(-600))) == 600)
+        #expect(c.hourTicks.map { c.xDomain.upperBound.timeIntervalSince($0) } == [0, 900, 1800, 2700, 3600])
+    }
+
+    @Test @MainActor func longerWindows_stayOnTheClock() {
+        let c = chart(hours: 5, now: now)
+
+        #expect(c.xDomain == now.addingTimeInterval(-5 * 3600)...now)
+        #expect(c.plotted(now) == now)
+    }
+
+    private func chart(hours: Double, now: Date) -> UsageChartView {
+        UsageChartView(data: [(timestamp: now, pct: 10)],
+                       domainStart: now.addingTimeInterval(-hours * 3600), domainEnd: now,
+                       accentColor: .green, height: 60, windowHours: hours, compact: hours <= 1)
     }
 }
 
